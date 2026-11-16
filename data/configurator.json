@@ -1,0 +1,288 @@
+{
+  "version": "2026-11-16",
+  "currency": "NZD",
+  "locale": "en-NZ",
+  "submitEndpoint": null,
+  "priceNote": "Indicative pricing for this test build. Final pricing is confirmed after a site assessment.",
+  "steps": [
+    "Floor plan",
+    "Roof",
+    "Colour palette",
+    "Upgrades",
+    "Estimate",
+    "Your details",
+    "Summary"
+  ],
+  "models": [
+    {
+      "id": "pavilion",
+      "name": "The Pavilion",
+      "size": "70 sq m",
+      "range": "Bespoke",
+      "floorArea": 70,
+      "basePrice": null,
+      "available": true,
+      "thumbnail": "assets/models/pavilion.jpg",
+      "layers": "assets/pavilion/layers/",
+      "interiors": "assets/pavilion/interiors/",
+      "imageWidth": 2560,
+      "imageHeight": 1440
+    },
+    {
+      "id": "mini",
+      "name": "The Mini",
+      "size": "25 sq m",
+      "range": "Standard",
+      "floorArea": 25,
+      "available": false,
+      "thumbnail": "assets/models/mini.jpg"
+    },
+    {
+      "id": "micro",
+      "name": "The Micro",
+      "size": "35 sq m",
+      "range": "Standard",
+      "floorArea": 35,
+      "available": false,
+      "thumbnail": "assets/models/micro.jpg"
+    },
+    {
+      "id": "nest",
+      "name": "The Nest",
+      "size": "45 sq m",
+      "range": "Standard",
+      "floorArea": 45,
+      "available": false,
+      "thumbnail": "assets/models/nest.jpg"
+    }
+  ],
+  "roofs": [
+    {
+      "id": "box",
+      "name": "Box",
+      "ratePerSqm": 0,
+      "summary": "Flat roof behind a crisp parapet line. Included in the base price."
+    },
+    {
+      "id": "mono",
+      "name": "Mono",
+      "ratePerSqm": 100,
+      "summary": "A single pitch that rises to the front of the pod."
+    },
+    {
+      "id": "gable",
+      "name": "Gable",
+      "ratePerSqm": 150,
+      "summary": "A classic twin pitch with a central ridge."
+    },
+    {
+      "id": "tilt",
+      "name": "Tilt",
+      "ratePerSqm": 200,
+      "summary": "Folded roof planes meeting on a diagonal ridge."
+    }
+  ],
+  "palettes": [
+    {
+      "id": "A",
+      "name": "Urban Dark",
+      "summary": "Our signature look: charcoal timber cladding, black joinery and a dark deck.",
+      "swatches": ["#2a2826", "#1a1214", "#3d3b38"]
+    },
+    {
+      "id": "B",
+      "name": "Alpine Warm",
+      "summary": "Natural cedar cladding with dark roofing and joinery.",
+      "swatches": ["#b27a49", "#2f3131", "#7e5236"]
+    },
+    {
+      "id": "C",
+      "name": "Coastal White",
+      "summary": "Light timber cladding, white joinery and light oak interiors.",
+      "swatches": ["#d8c4a0", "#f1e9eb", "#b7aa92"]
+    }
+  ],
+  "upgrades": [
+    {
+      "id": "solar",
+      "number": "01",
+      "name": "Off-grid solar",
+      "price": 9995,
+      "summary": "A seven-panel roof array with battery storage and inverter."
+    },
+    {
+      "id": "ac",
+      "number": "02",
+      "name": "Air conditioning",
+      "price": 3995,
+      "summary": "Heat pump with the indoor unit and an outdoor condenser.",
+      "interior": "ac",
+      "interiorCaption": "Indoor heat pump unit above the dining area"
+    },
+    {
+      "id": "screens",
+      "number": "03",
+      "name": "Aluminium window shrouds and screens",
+      "price": 4495,
+      "summary": "Box shrouds to the windows plus the vertical batten screen to the lounge."
+    },
+    {
+      "id": "abodo",
+      "number": "04",
+      "name": "Abodo eco timber cladding",
+      "price": 6495,
+      "summary": "Thermally modified NZ timber, run as horizontal weatherboards.",
+      "group": "cladding"
+    },
+    {
+      "id": "aluminium",
+      "number": "05",
+      "name": "Architectural aluminium cladding",
+      "price": 7995,
+      "summary": "Powder-coated 300 mm vertical planks in your palette colour.",
+      "group": "cladding"
+    },
+    {
+      "id": "fireplace",
+      "number": "06",
+      "name": "Wood fire fireplace",
+      "price": 6995,
+      "summary": "Freestanding wood fire on a stone hearth, with a flue through the roof.",
+      "interior": "fireplace",
+      "interiorCaption": "Wood fire on a stone hearth in the lounge"
+    },
+    {
+      "id": "smart",
+      "number": "07",
+      "name": "Smart home",
+      "price": 7995,
+      "summary": "Lighting, climate, security and energy on one wall panel and app.",
+      "interior": "smart",
+      "interiorCaption": "Smart home control panel (interface concept)"
+    },
+    {
+      "id": "tank",
+      "number": "08",
+      "name": "Water tank and reticulation",
+      "price": 14995,
+      "summary": "Rainwater tank fed from the roof, with pressure pump and pipework."
+    },
+    {
+      "id": "wastewater",
+      "number": "09",
+      "name": "Wastewater and storage tank",
+      "price": 14995,
+      "summary": "On-site treatment system with a buried tank and access lids."
+    },
+    {
+      "id": "landscaping",
+      "number": "10",
+      "name": "Landscaping",
+      "price": 9995,
+      "summary": "Deck and steps, a paved path and native planting."
+    },
+    {
+      "id": "transport",
+      "number": "11",
+      "name": "Transport and delivery",
+      "price": null,
+      "priceLabel": "POA",
+      "summary": "Quoted to your site once we know the access."
+    }
+  ],
+  "claddingLayers": {
+    "abodo": "abodo",
+    "aluminium": "aluminium",
+    "default": "standard"
+  },
+  "stack": [
+    { "slot": "ground", "src": "ground_{roof}", "when": "landscaping" },
+    { "slot": "shadow", "src": "shadow_{roof}", "unless": "landscaping" },
+    { "slot": "house", "src": "house_{roof}_{palette}_{cladding}" },
+    { "slot": "front", "src": "front_{palette}", "when": "landscaping" },
+    { "slot": "tank", "src": "tank_{roof}_{palette}", "when": "tank" },
+    { "slot": "battery", "src": "battery", "when": "solar" },
+    {
+      "slot": "screens",
+      "src": "screens_{roof}_{palette}",
+      "when": "screens"
+    },
+    { "slot": "wastewater", "src": "wastewater", "when": "wastewater" },
+    { "slot": "ac", "src": "ac", "when": "ac" },
+    { "slot": "solar", "src": "solar_{roof}", "when": "solar" },
+    { "slot": "flue", "src": "flue_{roof}_{palette}", "when": "fireplace" }
+  ],
+  "buildSequence": [
+    {
+      "caption": "Base pod",
+      "roof": "box",
+      "palette": "A",
+      "upgrades": [],
+      "hold": 1600
+    },
+    {
+      "caption": "Gable roof",
+      "roof": "gable",
+      "palette": "A",
+      "upgrades": [],
+      "hold": 1400
+    },
+    {
+      "caption": "Alpine Warm",
+      "roof": "gable",
+      "palette": "B",
+      "upgrades": [],
+      "hold": 1000
+    },
+    {
+      "caption": "Coastal White",
+      "roof": "gable",
+      "palette": "C",
+      "upgrades": [],
+      "hold": 1000
+    },
+    {
+      "caption": "Urban Dark",
+      "roof": "gable",
+      "palette": "A",
+      "upgrades": [],
+      "hold": 1000
+    },
+    {
+      "caption": "Off-grid solar",
+      "roof": "gable",
+      "palette": "A",
+      "upgrades": ["solar"],
+      "hold": 1400
+    },
+    {
+      "caption": "Wood fire",
+      "roof": "gable",
+      "palette": "A",
+      "upgrades": ["solar", "fireplace"],
+      "hold": 1400
+    },
+    {
+      "caption": "Landscaping",
+      "roof": "gable",
+      "palette": "A",
+      "upgrades": ["solar", "fireplace", "landscaping"],
+      "hold": 1600
+    },
+    {
+      "caption": "Your NOOK",
+      "roof": "gable",
+      "palette": "A",
+      "upgrades": [
+        "solar",
+        "fireplace",
+        "landscaping",
+        "screens",
+        "tank",
+        "ac",
+        "wastewater"
+      ],
+      "hold": 2400
+    }
+  ]
+}

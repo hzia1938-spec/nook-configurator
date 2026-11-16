@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NOOK Configurator</title>
+    <meta
+      name="description"
+      content="Design your NOOK pod: choose a floor plan, roof, colour palette and upgrades, and see your estimate."
+    />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="NOOK Pods" />
+    <meta property="og:title" content="NOOK Configurator | The Pavilion" />
+    <meta
+      property="og:description"
+      content="Choose a roof, colour palette and upgrades, watch your NOOK build up, and see the estimate as you go."
+    />
+    <meta property="og:url" content="https://hzia1938-spec.github.io/nook-configurator/" />
+    <meta property="og:image" content="https://hzia1938-spec.github.io/nook-configurator/assets/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,300..700&display=swap"
+    />
+    <link rel="stylesheet" href="assets/css/configurator.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="NOOK Pods configurator home">
+        <img
+          src="assets/brand/nook-pods-logo-white.svg"
+          alt="NOOK Pods"
+          width="124"
+          height="40"
+        />
+      </a>
+      <p class="header-title">
+        Configurator
+        <span class="test-badge">Test build</span>
+      </p>
+    </header>
+
+    <main class="configurator">
+      <section class="stage-column" aria-label="Your pod">
+        <div class="stage" id="stage">
+          <div class="stage-layers" id="stage-layers" role="img"></div>
+          <p class="stage-caption" id="stage-caption"></p>
+          <button class="stage-play" id="stage-play" type="button">
+            Watch it build
+          </button>
+          <p class="stage-status" id="stage-status" hidden>Loading</p>
+        </div>
+        <div class="interior-strip" id="interior-strip" hidden></div>
+      </section>
+
+      <section class="panel">
+        <nav class="stepper" id="stepper" aria-label="Configurator steps"></nav>
+        <div class="panel-body" id="panel-body" tabindex="-1"></div>
+        <footer class="panel-footer">
+          <div class="running-total">
+            <span class="running-total-label">Estimated total</span>
+            <strong class="running-total-value" id="total-value"></strong>
+            <span class="running-total-note" id="total-note"></span>
+          </div>
+          <div class="panel-actions">
+            <button class="link-button" id="back-button" type="button">
+              Back
+            </button>
+            <button class="primary-button" id="next-button" type="button">
+              Next
+            </button>
+          </div>
+        </footer>
+      </section>
+    </main>
+
+    <div
+      class="lightbox"
+      id="lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="lightbox-caption"
+      hidden
+    >
+      <div class="lightbox-inner">
+        <button class="lightbox-close" id="lightbox-close" type="button">
+          Close
+        </button>
+        <div class="lightbox-media" id="lightbox-media"></div>
+        <p class="lightbox-caption" id="lightbox-caption"></p>
+      </div>
+    </div>
+
+    <script src="assets/js/configurator.js" defer></script>
+  </body>
+</html>
