@@ -1380,7 +1380,24 @@
         union = mergeBounds(union, bounds);
       }
     }
-    return cropFor(union, config.spin.imageWidth, config.spin.imageHeight, SPIN_PADDING, aspect);
+    const sourceWidth = config.spin.imageWidth;
+    const sourceHeight = config.spin.imageHeight;
+    if (!union) {
+      return { x: 0, y: 0, width: sourceWidth, height: sourceHeight };
+    }
+    // Unlike the main view, never trim the pod to fill the stage: some angle would lose its ends.
+    const left = Math.max(union[0] - SPIN_PADDING, 0) * sourceWidth;
+    const top = Math.max(union[1] - SPIN_PADDING, 0) * sourceHeight;
+    const right = Math.min(union[2] + SPIN_PADDING, 1) * sourceWidth;
+    const bottom = Math.min(union[3] + SPIN_PADDING, 1) * sourceHeight;
+    const width = Math.min(Math.max(right - left, (bottom - top) * aspect), sourceWidth);
+    const height = Math.min(Math.max(bottom - top, width / aspect), sourceHeight);
+    return {
+      x: Math.min(Math.max((left + right - width) / 2, 0), sourceWidth - width),
+      y: Math.min(Math.max((top + bottom - height) / 2, 0), sourceHeight - height),
+      width,
+      height,
+    };
   }
 
   async function fetchBitmap(url) {
@@ -1437,8 +1454,9 @@
     const crop = spinCrop(names, aspect);
     const scale = spin.suffix ? 0.5 : 1;
     const ratio = window.devicePixelRatio || 1;
-    const width = Math.round(Math.min(crop.width * scale, stage.clientWidth * ratio));
-    const height = Math.round(width / aspect);
+    const shown = Math.min(stage.clientWidth, (stage.clientHeight * crop.width) / crop.height);
+    const width = Math.round(Math.min(crop.width * scale, shown * ratio));
+    const height = Math.round((width * crop.height) / crop.width);
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
