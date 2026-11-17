@@ -1,287 +1,397 @@
 {
-  "version": "2026-11-16",
+  "version": "2026-11-17",
   "currency": "NZD",
   "locale": "en-NZ",
   "submitEndpoint": null,
-  "priceNote": "Indicative pricing for this test build. Final pricing is confirmed after a site assessment.",
   "steps": [
-    "Floor plan",
-    "Roof",
-    "Colour palette",
-    "Upgrades",
-    "Estimate",
-    "Your details",
-    "Summary"
+    { "id": "design", "label": "Pod design", "title": "Select your favourite pod design" },
+    { "id": "roof", "label": "Roof design", "title": "Select your roof design" },
+    { "id": "specification", "label": "Specifications", "title": "Select your specifications" },
+    { "id": "palette", "label": "Colour palette", "title": "Select your favourite colour palette" },
+    { "id": "upgrades", "label": "Upgrades", "title": "Optional premium upgrades" },
+    { "id": "estimate", "label": "Instant estimate", "title": "Instant estimate" },
+    { "id": "details", "label": "Your details", "title": "Your details" }
+  ],
+  "collections": [
+    { "id": "residential", "name": "Residential Collection", "tiers": ["classic", "freedom", "signature"] },
+    { "id": "bespoke", "name": "Bespoke Collection", "tiers": ["freedom", "signature"] },
+    { "id": "commercial", "name": "Commercial Collection", "tiers": ["classic", "freedom", "signature"] }
   ],
   "models": [
+    { "id": "mini", "name": "Mini", "collection": "residential", "floorArea": 25, "available": false },
+    { "id": "micro", "name": "Micro", "collection": "residential", "floorArea": 35, "available": false },
+    { "id": "nest", "name": "Nest", "collection": "residential", "floorArea": 45, "available": false },
+    { "id": "sanctuary", "name": "Sanctuary", "collection": "residential", "floorArea": 55, "available": false },
+    { "id": "bach", "name": "Bach", "collection": "residential", "floorArea": 95, "available": false },
+    { "id": "retreat", "name": "Retreat", "collection": "residential", "floorArea": 115, "available": false },
+    { "id": "habitat", "name": "Habitat", "collection": "residential", "floorArea": 135, "available": false },
+    { "id": "barn", "name": "Barn", "collection": "residential", "floorArea": 155, "available": false },
     {
       "id": "pavilion",
-      "name": "The Pavilion",
-      "size": "70 sq m",
-      "range": "Bespoke",
+      "name": "Pavilion",
+      "collection": "bespoke",
       "floorArea": 70,
-      "basePrice": null,
       "available": true,
-      "thumbnail": "assets/models/pavilion.jpg",
       "layers": "assets/pavilion/layers/",
+      "spin": "assets/pavilion/spin/",
       "interiors": "assets/pavilion/interiors/",
+      "gallery": "assets/pavilion/gallery/",
       "imageWidth": 2560,
       "imageHeight": 1440
     },
-    {
-      "id": "mini",
-      "name": "The Mini",
-      "size": "25 sq m",
-      "range": "Standard",
-      "floorArea": 25,
-      "available": false,
-      "thumbnail": "assets/models/mini.jpg"
-    },
-    {
-      "id": "micro",
-      "name": "The Micro",
-      "size": "35 sq m",
-      "range": "Standard",
-      "floorArea": 35,
-      "available": false,
-      "thumbnail": "assets/models/micro.jpg"
-    },
-    {
-      "id": "nest",
-      "name": "The Nest",
-      "size": "45 sq m",
-      "range": "Standard",
-      "floorArea": 45,
-      "available": false,
-      "thumbnail": "assets/models/nest.jpg"
-    }
+    { "id": "sanctuary-bespoke", "name": "Sanctuary", "collection": "bespoke", "floorArea": 175, "available": false },
+    { "id": "haven", "name": "Haven", "collection": "bespoke", "floorArea": 200, "available": false },
+    { "id": "lakehouse", "name": "Lakehouse", "collection": "bespoke", "floorArea": 225, "available": false },
+    { "id": "wanaka", "name": "Wanaka", "collection": "bespoke", "floorArea": 250, "available": false },
+    { "id": "reserve", "name": "Reserve", "collection": "bespoke", "floorArea": 300, "available": false },
+    { "id": "studio", "name": "Studio", "collection": "commercial", "floorArea": 25, "available": false },
+    { "id": "classroom", "name": "Classroom", "collection": "commercial", "floorArea": 100, "available": false },
+    { "id": "cafe", "name": "Cafe", "collection": "commercial", "floorArea": 45, "available": false },
+    { "id": "lodge", "name": "Lodge", "collection": "commercial", "floorArea": 75, "available": false },
+    { "id": "office", "name": "Office", "collection": "commercial", "floorArea": 155, "available": false },
+    { "id": "med-suite", "name": "Med Suite", "collection": "commercial", "floorArea": 100, "available": false }
+  ],
+  "modelIncludes": [
+    "Factory Building Consent",
+    "Standard Screw Pile Foundations & Connections",
+    "Painted Baseboard",
+    "Plug & Play Services (Water / Power / Fibre)",
+    "Subject to full specifications*",
+    "Terms & Conditions Apply*"
   ],
   "roofs": [
     {
       "id": "box",
       "name": "Box",
-      "ratePerSqm": 0,
-      "summary": "Flat roof behind a crisp parapet line. Included in the base price."
+      "label": null,
+      "summary": "Our standard roof profile, included in the standard pricing of each model.",
+      "ratePerSqm": 0
     },
     {
       "id": "mono",
       "name": "Mono",
-      "ratePerSqm": 100,
-      "summary": "A single pitch that rises to the front of the pod."
+      "label": "Premium Upgrade",
+      "summary": "Our Mono roof is pitched to an architecturally designed angle.",
+      "ratePerSqm": 100
     },
     {
       "id": "gable",
       "name": "Gable",
-      "ratePerSqm": 150,
-      "summary": "A classic twin pitch with a central ridge."
+      "label": "Premium Upgrade",
+      "summary": "Our Gable roof is pitched to an architecturally designed angle.",
+      "ratePerSqm": 150
     },
     {
       "id": "tilt",
       "name": "Tilt",
-      "ratePerSqm": 200,
-      "summary": "Folded roof planes meeting on a diagonal ridge."
+      "label": "Premium Architectural Upgrade",
+      "summary": "Our Tilt roof is pitched to an architecturally designed split angle.",
+      "ratePerSqm": 200
+    }
+  ],
+  "tiers": [
+    {
+      "id": "classic",
+      "name": "Classic",
+      "label": "Passive Standard",
+      "summary": "Our High Performance Base Model",
+      "ratePerSqm": 3995
+    },
+    {
+      "id": "freedom",
+      "name": "Freedom",
+      "label": "Passive Premium",
+      "summary": "Advanced Passive & Comfort Upgrade",
+      "ratePerSqm": 4995
+    },
+    {
+      "id": "signature",
+      "name": "Signature",
+      "label": "Passive Platinum",
+      "summary": "Near Passive Architectural Luxury",
+      "ratePerSqm": 5995
     }
   ],
   "palettes": [
     {
-      "id": "A",
-      "name": "Urban Dark",
-      "summary": "Our signature look: charcoal timber cladding, black joinery and a dark deck.",
-      "swatches": ["#2a2826", "#1a1214", "#3d3b38"]
+      "id": "C",
+      "name": "Coastal White",
+      "summary": "Breezy, sun-washed tones designed to maximise natural light and evoke effortless seaside living.",
+      "swatches": ["#d8c4a0", "#f1e9eb", "#b7aa92"]
     },
     {
       "id": "B",
       "name": "Alpine Warm",
-      "summary": "Natural cedar cladding with dark roofing and joinery.",
+      "summary": "Rich, earthy textures and organic timber warmth creating an inviting, cabin-inspired sanctuary.",
       "swatches": ["#b27a49", "#2f3131", "#7e5236"]
     },
     {
-      "id": "C",
-      "name": "Coastal White",
-      "summary": "Light timber cladding, white joinery and light oak interiors.",
-      "swatches": ["#d8c4a0", "#f1e9eb", "#b7aa92"]
+      "id": "A",
+      "name": "Dark Urban",
+      "summary": "Sleek, moody charcoal aesthetics paired with sharp architectural contrast for a bold, modern edge.",
+      "swatches": ["#2a2826", "#1a1214", "#3d3b38"]
     }
+  ],
+  "upgradeGroups": [
+    { "title": "Council consents", "ids": ["resource-consent", "building-consent"] },
+    { "title": "Energy & comfort", "ids": ["solar", "ac", "fireplace"] },
+    { "title": "Exterior cladding", "ids": ["abodo", "aluminium", "screens"] },
+    { "title": "Interiors", "ids": ["smart"] },
+    { "title": "Site & services", "ids": ["tank", "wastewater", "landscaping", "hardscaping", "transport"] }
   ],
   "upgrades": [
     {
+      "id": "resource-consent",
+      "name": "Resource Consent",
+      "note": "If required",
+      "summary": "Resource consents to confirm we comply with local zoning laws.",
+      "price": 4995
+    },
+    {
+      "id": "building-consent",
+      "name": "Building Consent",
+      "note": "Required for designs over 70 sq m",
+      "summary": "Factory consent is included for your new home build. A site consent is required for the foundations and adding any new services to your new home.",
+      "price": 7995,
+      "requiredOver": 70
+    },
+    {
       "id": "solar",
-      "number": "01",
-      "name": "Off-grid solar",
-      "price": 9995,
-      "summary": "A seven-panel roof array with battery storage and inverter."
+      "name": "Off-Grid Solar & Power",
+      "summary": "7 panel home solar system + 3 kW inverter + 5 kWh battery + installation.",
+      "price": 9995
     },
     {
       "id": "ac",
-      "number": "02",
-      "name": "Air conditioning",
+      "name": "Air Conditioning",
+      "summary": "Heating & cooling, 5 kW.",
       "price": 3995,
-      "summary": "Heat pump with the indoor unit and an outdoor condenser.",
       "interior": "ac",
       "interiorCaption": "Indoor heat pump unit above the dining area"
     },
     {
-      "id": "screens",
-      "number": "03",
-      "name": "Aluminium window shrouds and screens",
-      "price": 4495,
-      "summary": "Box shrouds to the windows plus the vertical batten screen to the lounge."
-    },
-    {
-      "id": "abodo",
-      "number": "04",
-      "name": "Abodo eco timber cladding",
-      "price": 6495,
-      "summary": "Thermally modified NZ timber, run as horizontal weatherboards.",
-      "group": "cladding"
-    },
-    {
-      "id": "aluminium",
-      "number": "05",
-      "name": "Architectural aluminium cladding",
-      "price": 7995,
-      "summary": "Powder-coated 300 mm vertical planks in your palette colour.",
-      "group": "cladding"
-    },
-    {
       "id": "fireplace",
-      "number": "06",
-      "name": "Wood fire fireplace",
+      "name": "Woodfire Fireplace",
+      "summary": "Premium built-in heating solution.",
       "price": 6995,
-      "summary": "Freestanding wood fire on a stone hearth, with a flue through the roof.",
       "interior": "fireplace",
       "interiorCaption": "Wood fire on a stone hearth in the lounge"
     },
     {
-      "id": "smart",
-      "number": "07",
-      "name": "Smart home",
+      "id": "abodo",
+      "name": "Abodo Eco-Timber Cladding",
+      "summary": "Premium thermally modified New Zealand pine exterior cladding.",
+      "price": 6495,
+      "group": "cladding"
+    },
+    {
+      "id": "aluminium",
+      "name": "Architectural Aluminium Cladding",
+      "summary": "Premium, durable interlocking vertical aluminium tray cladding system.",
       "price": 7995,
-      "summary": "Lighting, climate, security and energy on one wall panel and app.",
+      "group": "cladding"
+    },
+    {
+      "id": "screens",
+      "name": "Architectural Window Shrouds & Screens",
+      "summary": "Architectural window shrouds & wall screens.",
+      "price": 4495
+    },
+    {
+      "id": "smart",
+      "name": "Smart Home Automation",
+      "summary": "Centralised smart hub integration for lighting, climate control, security and remote management.",
+      "price": 7995,
       "interior": "smart",
       "interiorCaption": "Smart home control panel (interface concept)"
     },
     {
       "id": "tank",
-      "number": "08",
-      "name": "Water tank and reticulation",
-      "price": 14995,
-      "summary": "Rainwater tank fed from the roof, with pressure pump and pipework."
+      "name": "Water Tank & Reticulation",
+      "summary": "Complete storage and supply reticulation system.",
+      "price": 14995
     },
     {
       "id": "wastewater",
-      "number": "09",
-      "name": "Wastewater and storage tank",
-      "price": 14995,
-      "summary": "On-site treatment system with a buried tank and access lids."
+      "name": "Waste Water & Storage",
+      "summary": "Complete wastewater management and holding / treatment storage system.",
+      "price": 14995
     },
     {
       "id": "landscaping",
-      "number": "10",
-      "name": "Landscaping",
-      "price": 9995,
-      "summary": "Deck and steps, a paved path and native planting."
+      "name": "Landscaping Package",
+      "includes": ["Topsoil Preparation", "Grass", "Lawn Areas", "Native Grasses", "Shrubs", "Feature Trees", "Garden Planting"],
+      "price": 9995
+    },
+    {
+      "id": "hardscaping",
+      "name": "Hardscaping Package",
+      "includes": [
+        "Timber Decking",
+        "Footpaths",
+        "Pebble Stone Areas",
+        "Decorative Aggregate",
+        "Outdoor Living Areas",
+        "Garden Edging"
+      ],
+      "price": 9995
     },
     {
       "id": "transport",
-      "number": "11",
-      "name": "Transport and delivery",
+      "name": "Transport & Delivery",
+      "summary": "Specialised modular transport, site cranage logistics and final positioning.",
       "price": null,
-      "priceLabel": "POA",
-      "summary": "Quoted to your site once we know the access."
+      "priceLabel": "Price on Application (POA)"
     }
   ],
-  "claddingLayers": {
-    "abodo": "abodo",
-    "aluminium": "aluminium",
-    "default": "standard"
-  },
-  "stack": [
-    { "slot": "ground", "src": "ground_{roof}", "when": "landscaping" },
-    { "slot": "shadow", "src": "shadow_{roof}", "unless": "landscaping" },
-    { "slot": "house", "src": "house_{roof}_{palette}_{cladding}" },
-    { "slot": "front", "src": "front_{palette}", "when": "landscaping" },
-    { "slot": "tank", "src": "tank_{roof}_{palette}", "when": "tank" },
-    { "slot": "battery", "src": "battery", "when": "solar" },
+  "detailFields": [
+    { "id": "name", "label": "Full name", "type": "text", "required": true, "autocomplete": "name" },
+    { "id": "email", "label": "Email", "type": "email", "required": true, "autocomplete": "email" },
+    { "id": "phone", "label": "Phone", "type": "tel", "required": true, "autocomplete": "tel" },
     {
-      "slot": "screens",
-      "src": "screens_{roof}_{palette}",
-      "when": "screens"
+      "id": "region",
+      "label": "Region",
+      "type": "select",
+      "required": true,
+      "options": [
+        "Northland",
+        "Auckland",
+        "Waikato",
+        "Bay of Plenty",
+        "Gisborne",
+        "Hawke's Bay",
+        "Taranaki",
+        "Manawatu-Whanganui",
+        "Wellington",
+        "Tasman",
+        "Nelson",
+        "Marlborough",
+        "West Coast",
+        "Canterbury",
+        "Otago",
+        "Southland"
+      ]
     },
-    { "slot": "wastewater", "src": "wastewater", "when": "wastewater" },
-    { "slot": "ac", "src": "ac", "when": "ac" },
-    { "slot": "solar", "src": "solar_{roof}", "when": "solar" },
-    { "slot": "flue", "src": "flue_{roof}_{palette}", "when": "fireplace" }
+    {
+      "id": "land",
+      "label": "Do you own land?",
+      "type": "select",
+      "required": true,
+      "options": ["Yes", "Not yet, I'm looking", "No"]
+    },
+    {
+      "id": "site",
+      "label": "Site characteristics",
+      "type": "select",
+      "required": true,
+      "options": ["Flat", "Gentle slope", "Steep slope", "Coastal", "Rural", "Urban section", "Not sure yet"]
+    },
+    {
+      "id": "preference",
+      "label": "Home preference",
+      "type": "select",
+      "required": true,
+      "options": [
+        "Main home",
+        "Holiday home",
+        "Minor dwelling / granny flat",
+        "Rental or short stay",
+        "Home office or studio",
+        "Commercial space"
+      ]
+    },
+    { "id": "floorArea", "label": "Desired floor area (m2)", "type": "number", "required": false },
+    {
+      "id": "budget",
+      "label": "Budget",
+      "type": "select",
+      "required": true,
+      "options": ["Under $150k", "$150k to $250k", "$250k to $400k", "$400k to $600k", "Over $600k"]
+    },
+    {
+      "id": "timeline",
+      "label": "Timeline",
+      "type": "select",
+      "required": false,
+      "options": ["Within 6 months", "6 to 12 months", "12 to 24 months", "Just exploring"]
+    },
+    {
+      "id": "finance",
+      "label": "Finance pre-approved?",
+      "type": "select",
+      "required": false,
+      "options": ["Yes", "In progress", "No", "Not needed"]
+    },
+    { "id": "notes", "label": "Anything else?", "type": "textarea", "required": false }
   ],
+  "gallery": [
+    { "file": "hero", "caption": "Golden hour" },
+    { "file": "dusk", "caption": "Dusk" },
+    { "file": "lounge", "caption": "Lounge" },
+    { "file": "kitchen", "caption": "Kitchen" }
+  ],
+  "claddingLayers": { "abodo": "abodo", "aluminium": "aluminium", "default": "standard" },
+  "stack": [
+    { "slot": "ground", "src": "hardplants_{roof}", "when": ["hardscaping", "landscaping"] },
+    { "slot": "ground", "src": "hard_{roof}", "when": ["hardscaping"], "unless": ["landscaping"] },
+    { "slot": "ground", "src": "lawn_{roof}", "when": ["landscaping"], "unless": ["hardscaping"] },
+    { "slot": "shadow", "src": "shadow_{roof}", "unless": ["hardscaping", "landscaping"] },
+    { "slot": "house", "src": "house_{roof}_{palette}_{cladding}" },
+    { "slot": "deck", "src": "deck_{palette}", "when": ["hardscaping"] },
+    { "slot": "plants", "src": "plantsdeck_{roof}", "when": ["landscaping", "hardscaping"] },
+    { "slot": "plants", "src": "plants_{roof}", "when": ["landscaping"], "unless": ["hardscaping"] },
+    { "slot": "tank", "src": "tank_{roof}_{palette}", "when": ["tank"] },
+    { "slot": "battery", "src": "battery", "when": ["solar"] },
+    { "slot": "screens", "src": "screens_{roof}_{palette}", "when": ["screens"] },
+    { "slot": "wastewater", "src": "wastewater", "when": ["wastewater"] },
+    { "slot": "ac", "src": "ac", "when": ["ac"] },
+    { "slot": "solar", "src": "solar_{roof}", "when": ["solar"] },
+    { "slot": "flue", "src": "flue_{roof}_{palette}", "when": ["fireplace"] }
+  ],
+  "spin": {
+    "count": 24,
+    "azimuth": 34,
+    "imageWidth": 2400,
+    "imageHeight": 1350,
+    "stack": [
+      { "slot": "shadow", "src": "shadow_{roof}" },
+      { "slot": "house", "src": "house_{roof}_{palette}_{cladding}" },
+      { "slot": "screens", "src": "screens_{roof}_{palette}", "when": ["screens"] },
+      { "slot": "battery", "src": "battery", "when": ["solar"] },
+      { "slot": "solar", "src": "solar_{roof}", "when": ["solar"] },
+      { "slot": "flue", "src": "flue_{roof}_{palette}", "when": ["fireplace"] },
+      { "slot": "tank", "src": "tank_{roof}_{palette}", "when": ["tank"], "at": [9.4, 4.25] },
+      { "slot": "wastewater", "src": "wastewater", "when": ["wastewater"], "at": [9.7, 1.0] },
+      { "slot": "ac", "src": "ac", "when": ["ac"], "at": [7.66, 0.78] }
+    ]
+  },
   "buildSequence": [
+    { "caption": "Base pod", "roof": "box", "palette": "A", "upgrades": [], "hold": 1600 },
+    { "caption": "Gable roof", "roof": "gable", "palette": "A", "upgrades": [], "hold": 1400 },
+    { "caption": "Alpine Warm", "roof": "gable", "palette": "B", "upgrades": [], "hold": 1000 },
+    { "caption": "Coastal White", "roof": "gable", "palette": "C", "upgrades": [], "hold": 1000 },
+    { "caption": "Dark Urban", "roof": "gable", "palette": "A", "upgrades": [], "hold": 1000 },
+    { "caption": "Off-grid solar", "roof": "gable", "palette": "A", "upgrades": ["solar"], "hold": 1300 },
+    { "caption": "Woodfire fireplace", "roof": "gable", "palette": "A", "upgrades": ["solar", "fireplace"], "hold": 1300 },
     {
-      "caption": "Base pod",
-      "roof": "box",
-      "palette": "A",
-      "upgrades": [],
-      "hold": 1600
-    },
-    {
-      "caption": "Gable roof",
+      "caption": "Hardscaping",
       "roof": "gable",
       "palette": "A",
-      "upgrades": [],
-      "hold": 1400
-    },
-    {
-      "caption": "Alpine Warm",
-      "roof": "gable",
-      "palette": "B",
-      "upgrades": [],
-      "hold": 1000
-    },
-    {
-      "caption": "Coastal White",
-      "roof": "gable",
-      "palette": "C",
-      "upgrades": [],
-      "hold": 1000
-    },
-    {
-      "caption": "Urban Dark",
-      "roof": "gable",
-      "palette": "A",
-      "upgrades": [],
-      "hold": 1000
-    },
-    {
-      "caption": "Off-grid solar",
-      "roof": "gable",
-      "palette": "A",
-      "upgrades": ["solar"],
-      "hold": 1400
-    },
-    {
-      "caption": "Wood fire",
-      "roof": "gable",
-      "palette": "A",
-      "upgrades": ["solar", "fireplace"],
+      "upgrades": ["solar", "fireplace", "hardscaping"],
       "hold": 1400
     },
     {
       "caption": "Landscaping",
       "roof": "gable",
       "palette": "A",
-      "upgrades": ["solar", "fireplace", "landscaping"],
-      "hold": 1600
+      "upgrades": ["solar", "fireplace", "hardscaping", "landscaping"],
+      "hold": 1400
     },
     {
       "caption": "Your NOOK",
       "roof": "gable",
       "palette": "A",
-      "upgrades": [
-        "solar",
-        "fireplace",
-        "landscaping",
-        "screens",
-        "tank",
-        "ac",
-        "wastewater"
-      ],
+      "upgrades": ["solar", "fireplace", "hardscaping", "landscaping", "screens", "tank", "ac", "wastewater"],
       "hold": 2400
     }
   ]

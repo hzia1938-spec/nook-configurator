@@ -1,57 +1,43 @@
 (() => {
   "use strict";
 
-  const ROOF_ICONS = {
-    box: '<path d="M6 13h44" stroke-width="3"/><path d="M8 13h40v21H8z"/>',
-    mono: '<path d="M6 9l44 7" stroke-width="3"/><path d="M8 9.3l40 6.4V34H8z"/>',
-    gable: '<path d="M5 19L28 5l23 14" stroke-width="3"/><path d="M8 17.2L28 5l20 12.2V34H8z"/>',
-    tilt: '<path d="M6 15l30-9 14 6" stroke-width="3"/><path d="M8 14.4L36 6l12 5.1V34H8z"/><path d="M36 6l-6 28"/>',
-  };
-  const UPGRADE_GROUPS = [
-    { title: "Energy and comfort", ids: ["solar", "ac", "fireplace", "smart"] },
-    { title: "Exterior", ids: ["screens", "abodo", "aluminium"] },
-    {
-      title: "Site and services",
-      ids: ["tank", "wastewater", "landscaping", "transport"],
-    },
-  ];
-  const DETAIL_FIELDS = [
-    { id: "name", label: "Full name", type: "text", autocomplete: "name" },
-    { id: "email", label: "Email", type: "email", autocomplete: "email" },
-    { id: "phone", label: "Phone", type: "tel", autocomplete: "tel" },
-    {
-      id: "location",
-      label: "Build location",
-      type: "text",
-      autocomplete: "address-level2",
-      placeholder: "Town or region",
-    },
-  ];
   const FADE_MS = 320;
   const FRAME_MS = 1500;
   const FRAME_PADDING = 0.07;
+  const SPIN_PADDING = 0.04;
   const MAX_ZOOM = 1.75;
+  const SPIN_INTRO_MS = 70;
+  const STAGE_BACKGROUND = "#ffffff";
+  const CHEVRON =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+  const ARROW =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 
   const state = {
-    step: 0,
-    maxStep: 0,
     model: "pavilion",
     roof: "box",
+    tier: "freedom",
     palette: "A",
     upgrades: new Set(),
-    customer: {
-      name: "",
-      email: "",
-      phone: "",
-      location: "",
-      notes: "",
-      consent: false,
-    },
+    customer: {},
     errors: {},
     submitted: false,
     sending: false,
     sendError: "",
     summaryImage: "",
+    section: 0,
+  };
+
+  const spin = {
+    active: false,
+    angle: 0,
+    manifest: null,
+    suffix: "",
+    key: "",
+    frames: [],
+    token: null,
+    intro: null,
+    drag: null,
   };
 
   let config = null;
@@ -76,6 +62,8 @@
         node.className = value;
       } else if (key === "text") {
         node.textContent = value;
+      } else if (key === "html") {
+        node.innerHTML = value;
       } else if (key.startsWith("on")) {
         node.addEventListener(key.slice(2), value);
       } else {
@@ -90,16 +78,29 @@
     return node;
   }
 
-  function svgIcon(markup) {
-    const holder = document.createElement("span");
-    holder.innerHTML = `<svg class="roof-icon" viewBox="0 0 56 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">${markup}</svg>`;
-    return holder.firstElementChild;
-  }
-
   const currentModel = () => config.models.find((item) => item.id === state.model);
+  const collectionOf = (model) => config.collections.find((item) => item.id === model.collection);
   const findRoof = (id) => config.roofs.find((item) => item.id === id);
+  const findTier = (id) => config.tiers.find((item) => item.id === id);
   const findPalette = (id) => config.palettes.find((item) => item.id === id);
   const findUpgrade = (id) => config.upgrades.find((item) => item.id === id);
+  const availableTiers = () => collectionOf(currentModel()).tiers.map(findTier);
+  const formatPrice = (value) => money.format(value);
+
+  function isRequired(item) {
+    return item.requiredOver !== undefined && currentModel().floorArea > item.requiredOver;
+  }
+
+  function enforceRules() {
+    if (!availableTiers().some((tier) => tier.id === state.tier)) {
+      state.tier = availableTiers()[0].id;
+    }
+    for (const item of config.upgrades) {
+      if (isRequired(item)) {
+        state.upgrades.add(item.id);
+      }
+    }
+  }
 
   function claddingFor(upgrades) {
     for (const id of upgrades) {
@@ -114,74 +115,64 @@
     for (const id of upgrades) {
       const item = findUpgrade(id);
       if (item?.group === "cladding") {
-        return item.name.replace(/ cladding$/i, "");
+        return item.name;
       }
     }
     return "Standard vertical timber";
   }
 
-  function roofPrice(roofId) {
-    return findRoof(roofId).ratePerSqm * currentModel().floorArea;
+  function roofTitle(roof) {
+    return roof.label ? `${roof.name.toUpperCase()} - ${roof.label}` : roof.name.toUpperCase();
   }
 
-  function formatPrice(value) {
-    return money.format(value);
+  function tierTitle(tier) {
+    return `${tier.name.toUpperCase()} - ${tier.label}`;
   }
 
-  function roofPriceLabel(roof) {
-    if (roof.ratePerSqm === 0) {
-      return { main: "Included", detail: "" };
-    }
-    return {
-      main: `+${formatPrice(roofPrice(roof.id))}`,
-      detail: `${formatPrice(roof.ratePerSqm)} per sq m`,
-    };
-  }
-
-  function upgradePriceLabel(item) {
-    return item.price === null ? item.priceLabel : `From ${formatPrice(item.price)}`;
+  function modelTitle(model) {
+    return `The ${model.name} | ${model.floorArea}`;
   }
 
   function pricing() {
     const model = currentModel();
     const roof = findRoof(state.roof);
-    const lines = [
+    const tier = findTier(state.tier);
+    const palette = findPalette(state.palette);
+    const base = model.floorArea * tier.ratePerSqm;
+    const roofCost = model.floorArea * roof.ratePerSqm;
+    const included = [
+      { id: "model", title: modelTitle(model), includes: config.modelIncludes, value: base },
       {
-        label: `${model.name} base pod`,
-        detail: `${model.range}, ${model.size}`,
-        value: model.basePrice,
-        display: model.basePrice === null ? "To be confirmed" : null,
+        id: "roof",
+        title: roofTitle(roof),
+        summary: roof.summary,
+        value: roofCost,
+        display: roofCost ? null : "Included",
       },
+      { id: "tier", title: tierTitle(tier), summary: tier.summary, value: 0, display: "Included" },
       {
-        label: `${roof.name} roof`,
-        detail:
-          roof.ratePerSqm === 0
-            ? null
-            : `${formatPrice(roof.ratePerSqm)} per sq m x ${model.floorArea} sq m`,
-        value: roofPrice(roof.id),
-        display: roof.ratePerSqm === 0 ? "Included" : null,
-      },
-      {
-        label: `${findPalette(state.palette).name} palette`,
+        id: "palette",
+        title: palette.name.toUpperCase(),
+        summary: palette.summary,
         value: 0,
         display: "Included",
       },
     ];
-    for (const item of config.upgrades) {
-      if (state.upgrades.has(item.id)) {
-        lines.push({
-          label: item.name,
-          value: item.price,
-          display: item.price === null ? item.priceLabel : null,
-        });
-      }
-    }
-    const options = lines
-      .slice(1)
-      .reduce((sum, line) => sum + (typeof line.value === "number" ? line.value : 0), 0);
-    const hasPoa = lines.slice(1).some((line) => line.value === null);
-    const total = model.basePrice === null ? null : model.basePrice + options;
-    return { lines, options, total, hasPoa, basePrice: model.basePrice };
+    const optional = config.upgrades
+      .filter((item) => state.upgrades.has(item.id))
+      .map((item) => ({
+        id: item.id,
+        title: item.name,
+        summary: item.summary,
+        includes: item.includes,
+        value: item.price,
+        display: item.price === null ? "POA" : null,
+      }));
+    const total = [...included, ...optional].reduce(
+      (sum, line) => sum + (typeof line.value === "number" ? line.value : 0),
+      0,
+    );
+    return { included, optional, total, hasPoa: optional.some((line) => line.value === null) };
   }
 
   function readHash() {
@@ -189,27 +180,21 @@
     if (findRoof(params.get("roof"))) {
       state.roof = params.get("roof");
     }
+    if (findTier(params.get("tier"))) {
+      state.tier = params.get("tier");
+    }
     if (findPalette(params.get("palette"))) {
       state.palette = params.get("palette");
     }
-    const upgrades = (params.get("upgrades") || "").split(",").filter((id) => findUpgrade(id));
     state.upgrades = new Set();
-    for (const id of upgrades) {
+    for (const id of (params.get("upgrades") || "").split(",").filter((value) => findUpgrade(value))) {
       toggleUpgrade(id, true);
     }
-    const step = Number(params.get("step"));
-    if (Number.isInteger(step) && step >= 0 && step <= 4) {
-      state.step = step;
-      state.maxStep = step;
-    }
+    enforceRules();
   }
 
   function writeHash() {
-    const params = new URLSearchParams({
-      roof: state.roof,
-      palette: state.palette,
-      step: String(Math.min(state.step, 4)),
-    });
+    const params = new URLSearchParams({ roof: state.roof, tier: state.tier, palette: state.palette });
     if (state.upgrades.size) {
       params.set("upgrades", [...state.upgrades].join(","));
     }
@@ -218,6 +203,10 @@
 
   function toggleUpgrade(id, force) {
     const item = findUpgrade(id);
+    if (isRequired(item)) {
+      state.upgrades.add(id);
+      return;
+    }
     const selected = force ?? !state.upgrades.has(id);
     if (selected && item.group) {
       for (const other of config.upgrades) {
@@ -233,26 +222,28 @@
     }
   }
 
-  function layerUrl(name, full = false) {
-    return `${currentModel().layers}${name}${full ? "" : layerSuffix}.webp`;
+  function matches(entry, upgrades) {
+    return (
+      (entry.when || []).every((id) => upgrades.has(id)) &&
+      !(entry.unless || []).some((id) => upgrades.has(id))
+    );
+  }
+
+  function fill(source, view) {
+    const values = { roof: view.roof, palette: view.palette, cladding: claddingFor(view.upgrades) };
+    return source.replace(/\{(\w+)\}/g, (match, key) => values[key]);
   }
 
   function resolveStack(view) {
-    const values = {
-      roof: view.roof,
-      palette: view.palette,
-      cladding: claddingFor(view.upgrades),
-    };
     return config.stack
-      .filter(
-        (entry) =>
-          (!entry.when || view.upgrades.has(entry.when)) &&
-          (!entry.unless || !view.upgrades.has(entry.unless)),
-      )
-      .map((entry) => ({
-        slot: entry.slot,
-        name: entry.src.replace(/\{(\w+)\}/g, (match, key) => values[key]),
-      }));
+      .filter((entry) => matches(entry, view.upgrades))
+      .map((entry) => ({ slot: entry.slot, name: fill(entry.src, view) }));
+  }
+
+  const slotOrder = () => [...new Set(config.stack.map((entry) => entry.slot))];
+
+  function layerUrl(name, full = false) {
+    return `${currentModel().layers}${name}${full ? "" : layerSuffix}.webp`;
   }
 
   function loadImage(url) {
@@ -276,23 +267,25 @@
     status.hidden = !text;
   }
 
-  function unionBounds(layers) {
-    let union = null;
-    for (const layer of layers) {
-      const bounds = layer.slot === "shadow" ? null : layerBounds[layer.name];
-      if (!bounds) {
-        continue;
-      }
-      union = union
-        ? [
-            Math.min(union[0], bounds[0]),
-            Math.min(union[1], bounds[1]),
-            Math.max(union[2], bounds[2]),
-            Math.max(union[3], bounds[3]),
-          ]
-        : [...bounds];
+  function mergeBounds(union, bounds) {
+    if (!bounds) {
+      return union;
     }
-    return union;
+    return union
+      ? [
+          Math.min(union[0], bounds[0]),
+          Math.min(union[1], bounds[1]),
+          Math.max(union[2], bounds[2]),
+          Math.max(union[3], bounds[3]),
+        ]
+      : [...bounds];
+  }
+
+  function unionBounds(layers) {
+    return layers.reduce(
+      (union, layer) => (layer.slot === "shadow" ? union : mergeBounds(union, layerBounds[layer.name])),
+      null,
+    );
   }
 
   function imageRect(width, height) {
@@ -338,26 +331,26 @@
     const wanted = new Map(layers.map((layer) => [layer.slot, layer.name]));
     frameStage(unionBounds(layers));
     let pending = 0;
-    config.stack.forEach((entry, index) => {
-      const name = wanted.get(entry.slot);
-      const current = slots.get(entry.slot);
+    slotOrder().forEach((slot, index) => {
+      const name = wanted.get(slot);
+      const current = slots.get(slot);
       if (current && current.name === name) {
         return;
       }
       if (!name) {
         if (current) {
-          container.querySelectorAll(`img[data-slot="${entry.slot}"]`).forEach(retire);
-          slots.delete(entry.slot);
+          container.querySelectorAll(`img[data-slot="${slot}"]`).forEach(retire);
+          slots.delete(slot);
         }
         return;
       }
       const image = new Image();
       image.alt = "";
       image.decoding = "async";
-      image.dataset.slot = entry.slot;
+      image.dataset.slot = slot;
       image.style.zIndex = String(index + 1);
       const record = { name, image };
-      slots.set(entry.slot, record);
+      slots.set(slot, record);
       pending += 1;
       setStatus("Loading");
       image.onload = () => {
@@ -365,10 +358,10 @@
         if (pending === 0) {
           setStatus("");
         }
-        if (slots.get(entry.slot) !== record) {
+        if (slots.get(slot) !== record) {
           return;
         }
-        const previous = [...container.querySelectorAll(`img[data-slot="${entry.slot}"]`)];
+        const previous = [...container.querySelectorAll(`img[data-slot="${slot}"]`)];
         container.append(image);
         requestAnimationFrame(() => image.classList.add("is-visible"));
         window.setTimeout(() => previous.forEach(retire), FADE_MS);
@@ -382,24 +375,30 @@
     updateCaption(view, label);
   }
 
-  function updateCaption(view, label) {
+  function describe(view) {
     const roof = findRoof(view.roof);
     const palette = findPalette(view.palette);
+    const upgrades = [...view.upgrades]
+      .map((id) => findUpgrade(id))
+      .filter((item) => !item.id.endsWith("consent") && item.id !== "transport")
+      .map((item) => item.name.toLowerCase());
+    return (
+      `The ${currentModel().name} with a ${roof.name.toLowerCase()} roof in ${palette.name}` +
+      (upgrades.length ? `, with ${upgrades.join(", ")}` : "")
+    );
+  }
+
+  function updateCaption(view, label) {
     const caption = byId("stage-caption");
     if (label) {
       caption.replaceChildren(h("strong", { text: "Watch it build" }), ` / ${label}`);
     } else {
       caption.replaceChildren(
-        h("strong", { text: currentModel().name }),
-        ` / ${roof.name} roof / ${palette.name}`,
+        h("strong", { text: `The ${currentModel().name}` }),
+        ` / ${findRoof(view.roof).name} roof / ${findPalette(view.palette).name}`,
       );
     }
-    const upgrades = [...view.upgrades].map((id) => findUpgrade(id).name.toLowerCase());
-    byId("stage-layers").setAttribute(
-      "aria-label",
-      `${currentModel().name} with a ${roof.name.toLowerCase()} roof in ${palette.name}` +
-        (upgrades.length ? `, with ${upgrades.join(", ")}` : ""),
-    );
+    byId("stage-layers").setAttribute("aria-label", describe(view));
   }
 
   function prefetch(names) {
@@ -416,36 +415,34 @@
     next();
   }
 
-  function prefetchForStep() {
-    const cladding = claddingFor(state.upgrades);
-    const landscaped = state.upgrades.has("landscaping");
+  function prefetchForSection(index) {
+    const id = config.steps[index]?.id;
     const names = [];
-    if (state.step <= 1) {
+    if (id === "roof") {
       for (const roof of config.roofs) {
-        names.push(`house_${roof.id}_${state.palette}_${cladding}`);
-        names.push(landscaped ? `ground_${roof.id}` : `shadow_${roof.id}`);
-      }
-    } else if (state.step === 2) {
-      for (const palette of config.palettes) {
-        names.push(`house_${state.roof}_${palette.id}_${cladding}`);
-      }
-    } else if (state.step === 3) {
-      const view = {
-        roof: state.roof,
-        palette: state.palette,
-        upgrades: new Set(config.upgrades.map((item) => item.id)),
-      };
-      for (const layer of resolveStack(view)) {
-        if (layer.slot !== "house") {
+        for (const layer of resolveStack({ ...state, roof: roof.id })) {
           names.push(layer.name);
         }
       }
-      names.push(`shadow_${state.roof}`);
+    } else if (id === "palette") {
+      for (const palette of config.palettes) {
+        for (const layer of resolveStack({ ...state, palette: palette.id })) {
+          names.push(layer.name);
+        }
+      }
+    } else if (id === "upgrades") {
+      const everything = new Set(config.upgrades.map((item) => item.id));
+      everything.delete("aluminium");
+      for (const layer of resolveStack({ ...state, upgrades: everything })) {
+        names.push(layer.name);
+      }
       for (const variant of ["abodo", "aluminium"]) {
         names.push(`house_${state.roof}_${state.palette}_${variant}`);
       }
     }
-    window.setTimeout(() => prefetch(names), 700);
+    if (names.length) {
+      window.setTimeout(() => prefetch([...new Set(names)]), 500);
+    }
   }
 
   function renderInteriors() {
@@ -460,17 +457,11 @@
             class: "interior-card",
             type: "button",
             "aria-label": `View ${item.interiorCaption.toLowerCase()}`,
-            onclick: (event) => openLightbox(item, event.currentTarget),
+            onclick: (event) => openLightbox(interiorMedia(item), item.interiorCaption, event.currentTarget),
           },
           item.interior === "smart"
             ? h("span", { class: "smart-thumb", "aria-hidden": "true", text: "Panel" })
-            : h("img", {
-                src: interiorUrl(item),
-                alt: "",
-                loading: "lazy",
-                width: "96",
-                height: "60",
-              }),
+            : h("img", { src: interiorUrl(item), alt: "", loading: "lazy", width: "96", height: "60" }),
           h(
             "span",
             {},
@@ -484,6 +475,12 @@
 
   function interiorUrl(item) {
     return `${currentModel().interiors}${item.interior}_${state.palette}.jpg`;
+  }
+
+  function interiorMedia(item) {
+    return item.interior === "smart"
+      ? smartPanel()
+      : h("img", { src: interiorUrl(item), alt: item.interiorCaption });
   }
 
   function smartPanel() {
@@ -503,7 +500,7 @@
         "div",
         { class: "smart-grid" },
         tile("Lights", "Lounge scene", "60%", true),
-        tile("Climate", "Heat pump", "21°", false),
+        tile("Climate", "Heat pump", "21 C", false),
         tile("Security", "Doors locked", "Armed", false),
         tile("Energy", "Solar now", "3.2 kW", true),
         tile("Battery", "Stored", "84%", false),
@@ -512,15 +509,42 @@
     );
   }
 
-  function openLightbox(item, trigger) {
-    lastFocus = trigger;
-    const media = byId("lightbox-media");
-    media.replaceChildren(
-      item.interior === "smart"
-        ? smartPanel()
-        : h("img", { src: interiorUrl(item), alt: item.interiorCaption }),
+  function renderGallery() {
+    const model = currentModel();
+    const grid = byId("gallery-grid");
+    byId("gallery").hidden = !model.gallery;
+    if (!model.gallery) {
+      grid.replaceChildren();
+      return;
+    }
+    const palette = findPalette(state.palette);
+    grid.replaceChildren(
+      ...config.gallery.map((item) => {
+        const base = `${model.gallery}${state.palette}/${item.file}`;
+        const caption = `The ${model.name} in ${palette.name}: ${item.caption.toLowerCase()}`;
+        return h(
+          "li",
+          {},
+          h(
+            "button",
+            {
+              class: "gallery-item",
+              type: "button",
+              "aria-label": `Enlarge ${caption}`,
+              onclick: (event) =>
+                openLightbox(h("img", { src: `${base}.jpg`, alt: caption }), caption, event.currentTarget),
+            },
+            h("img", { src: `${base}-thumb.jpg`, alt: "", loading: "lazy", width: "480", height: "270" }),
+          ),
+        );
+      }),
     );
-    byId("lightbox-caption").textContent = item.interiorCaption;
+  }
+
+  function openLightbox(media, caption, trigger) {
+    lastFocus = trigger;
+    byId("lightbox-media").replaceChildren(media);
+    byId("lightbox-caption").textContent = caption;
     byId("lightbox").hidden = false;
     byId("lightbox-close").focus();
   }
@@ -532,47 +556,43 @@
     }
   }
 
-  function stepper() {
-    const nav = byId("stepper");
-    const names = config.steps;
-    nav.replaceChildren(
+  function renderProgress() {
+    const steps = config.steps;
+    byId("progress").replaceChildren(
       h(
         "p",
-        { class: "stepper-label" },
-        h("span", { text: `Step ${state.step + 1} of ${names.length}` }),
-        h("span", { text: names[state.step] }),
+        { class: "progress-label" },
+        h("span", { text: `Step ${state.section + 1} of ${steps.length}` }),
+        h("span", { text: steps[state.section].label }),
       ),
       h(
         "ol",
-        { class: "stepper-track" },
-        names.map((name, index) => {
-          const reachable = index <= state.maxStep && (index < 6 || state.submitted) && !state.submitted;
-          return h(
+        { class: "progress-track" },
+        steps.map((step, index) =>
+          h(
             "li",
             {},
             h("button", {
               type: "button",
-              class: index === state.step ? "is-current" : index < state.step ? "is-done" : "",
-              "aria-label": `Step ${index + 1}: ${name}`,
-              "aria-current": index === state.step ? "step" : null,
-              disabled: !reachable || index === state.step,
-              onclick: () => goTo(index),
+              class: index === state.section ? "is-current" : "",
+              "aria-label": `Step ${index + 1}: ${step.label}`,
+              "aria-current": index === state.section ? "step" : null,
+              onclick: () => scrollToSection(index),
             }),
-          );
-        }),
+          ),
+        ),
       ),
     );
   }
 
-  function heading(eyebrow, title, intro) {
-    return [
-      h("p", { class: "eyebrow", text: eyebrow }),
-      h("h1", { class: "step-title", text: title }),
-      intro ? h("p", { class: "step-intro", text: intro }) : null,
-    ];
+  function scrollToSection(index) {
+    const section = byId(`step-${config.steps[index].id}`);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    section.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    section.querySelector(".step-title")?.focus({ preventScroll: true });
   }
 
-  function optionButton({ key, pressed, disabled, onclick, lead, name, summary, price, extraClass }) {
+  function choice({ key, pressed, disabled, onclick, title, after, summary, extra, price, label }) {
     return h(
       "li",
       {},
@@ -580,226 +600,318 @@
         "button",
         {
           type: "button",
-          class: `option ${extraClass || ""}`.trim(),
+          class: "choice",
           "aria-pressed": pressed ? "true" : "false",
           "data-key": key,
           disabled,
+          "aria-label": label || null,
           onclick,
         },
-        lead,
+        h("span", { class: "choice-mark", "aria-hidden": "true" }),
         h(
           "span",
-          {},
-          h("span", { class: "option-name", text: name }),
-          summary ? h("span", { class: "option-summary", text: summary }) : null,
+          { class: "choice-body" },
+          h("span", { class: "choice-title" }, title, after),
+          summary ? h("span", { class: "choice-summary", text: summary }) : null,
+          extra,
+          price ? h("span", { class: "choice-price", text: price }) : null,
         ),
-        price,
       ),
     );
   }
 
-  function priceTag(main, detail, withCheck) {
-    return h(
-      "span",
-      { class: "option-price" },
-      main,
-      withCheck ? h("span", { class: "check", "aria-hidden": "true" }) : null,
-      detail ? h("small", { text: detail }) : null,
-    );
+  function titled(main, rest) {
+    return [h("strong", { text: main }), rest ? ` - ${rest}` : null];
   }
 
-  function modelStep() {
-    return [
-      ...heading("Floor plan", "Choose your floor plan", "Start with the pod that suits how you want to live."),
-      h(
-        "ul",
-        { class: "option-list" },
-        config.models.map((model) =>
-          optionButton({
-            key: `model:${model.id}`,
-            extraClass: "model-option",
-            pressed: model.id === state.model,
-            disabled: !model.available,
-            onclick: () => {
-              state.model = model.id;
-              render();
-            },
-            lead: h("img", { src: model.thumbnail, alt: "", width: "112", height: "70", loading: "lazy" }),
-            name: model.name,
-            summary: `${model.range}, ${model.size}`,
-            price: model.available
-              ? priceTag(
-                  model.basePrice === null ? "Price TBC" : formatPrice(model.basePrice),
-                  model.basePrice === null ? "Base price" : "From",
-                )
-              : h("span", { class: "tag", text: "Coming soon" }),
-          }),
+  function designStep() {
+    const blocks = config.collections.map((collection) => {
+      const models = config.models.filter((model) => model.collection === collection.id);
+      return [
+        h("h3", { class: "group-title", text: collection.name }),
+        h(
+          "ul",
+          { class: "choice-grid", style: `--rows:${Math.ceil(models.length / 2)}` },
+          models.map((model) =>
+            choice({
+              key: `model:${model.id}`,
+              pressed: model.id === state.model,
+              disabled: !model.available,
+              label: model.available ? null : `The ${model.name}, ${model.floorArea} square metres, coming soon`,
+              onclick: () => {
+                state.model = model.id;
+                enforceRules();
+                render();
+              },
+              title: ["The ", h("strong", { text: model.name }), ` | ${model.floorArea}`],
+            }),
+          ),
         ),
+      ];
+    });
+    return [
+      h(
+        "p",
+        { class: "lead" },
+        h("strong", { text: "Explore our curated collection of architectural homes & commercial spaces" }),
+        ", ranging from compact 25 m",
+        h("sup", { text: "2" }),
+        " layouts to generous 300 m",
+        h("sup", { text: "2" }),
+        " living / office spaces.",
       ),
       h("p", {
+        class: "lead",
+        text: "Each design is intentionally crafted to elevate everyday life and complement its natural surroundings.",
+      }),
+      blocks,
+      h("p", {
         class: "note",
-        text: "The Pavilion is the test model for this build. The other floor plans join as their layer sets are rendered.",
+        text: "The Pavilion is live in this test build. The other designs join as they are rendered.",
       }),
     ];
   }
 
   function roofStep() {
-    const model = currentModel();
     return [
-      ...heading(
-        "Roof",
-        "Choose a roof style",
-        `Roof upgrades are priced per square metre of floor area (${model.floorArea} sq m for ${model.name}).`,
-      ),
+      h("p", { class: "lead" }, h("strong", { text: "Choose your favourite roof profile" })),
+      h("p", {
+        class: "lead",
+        text: "Select our standard BOX roofing profile (included) or upgrade with our 3 premium roofing styles to get your favourite look.",
+      }),
       h(
         "ul",
-        { class: "option-list" },
-        config.roofs.map((roof) => {
-          const label = roofPriceLabel(roof);
-          return optionButton({
+        { class: "choice-list" },
+        config.roofs.map((roof) =>
+          choice({
             key: `roof:${roof.id}`,
             pressed: roof.id === state.roof,
             onclick: () => select("roof", roof.id),
-            lead: svgIcon(ROOF_ICONS[roof.id]),
-            name: roof.name,
+            title: titled(roof.name.toUpperCase(), roof.label),
             summary: roof.summary,
-            price: priceTag(label.main, label.detail),
-          });
-        }),
-      ),
-    ];
-  }
-
-  function paletteStep() {
-    return [
-      ...heading("Colour palette", "Choose a colour palette", "Each palette sets the cladding, joinery, roofing and deck."),
-      h(
-        "ul",
-        { class: "option-list" },
-        config.palettes.map((palette) =>
-          optionButton({
-            key: `palette:${palette.id}`,
-            pressed: palette.id === state.palette,
-            onclick: () => select("palette", palette.id),
-            lead: h(
-              "span",
-              { class: "swatches", "aria-hidden": "true" },
-              palette.swatches.map((color) => h("span", { style: `background:${color}` })),
-            ),
-            name: palette.name,
-            summary: palette.summary,
-            price: priceTag("Included"),
           }),
         ),
       ),
     ];
   }
 
-  function upgradesStep() {
-    const blocks = UPGRADE_GROUPS.map((group) => [
-      h("h2", { class: "upgrade-group-title", text: group.title }),
+  function specificationStep() {
+    const tiers = availableTiers();
+    const bespoke = currentModel().collection === "bespoke";
+    return [
+      h(
+        "p",
+        { class: "lead" },
+        "Select the perfect finish for your home. ",
+        bespoke ? "Bespoke homes come in our " : "Choose from our ",
+        h("strong", {
+          text: bespoke
+            ? `${tiers.length} premium specification tiers`
+            : `${tiers.length} curated tiers of premium specifications`,
+        }),
+        " to match your lifestyle and budget.",
+      ),
       h(
         "ul",
-        { class: "option-list" },
+        { class: "choice-list" },
+        tiers.map((tier) =>
+          choice({
+            key: `tier:${tier.id}`,
+            pressed: tier.id === state.tier,
+            onclick: () => select("tier", tier.id),
+            title: titled(tier.name.toUpperCase(), tier.label),
+            summary: tier.summary,
+          }),
+        ),
+      ),
+      bespoke
+        ? h("p", {
+            class: "note",
+            text: "Classic is not offered on the Bespoke Collection, as these are premium homes.",
+          })
+        : null,
+    ];
+  }
+
+  function paletteStep() {
+    return [
+      h(
+        "p",
+        { class: "lead" },
+        h("strong", { text: "Select from our 3 award-winning exterior & interior colour palettes." }),
+        " Each pairs an exterior cladding with a matching interior, so the inside and outside bring your home together.",
+      ),
+      h(
+        "ul",
+        { class: "choice-list" },
+        config.palettes.map((palette) =>
+          choice({
+            key: `palette:${palette.id}`,
+            pressed: palette.id === state.palette,
+            onclick: () => select("palette", palette.id),
+            title: h("strong", { text: palette.name.toUpperCase() }),
+            after: h(
+              "span",
+              { class: "swatches", "aria-hidden": "true" },
+              palette.swatches.map((color) => h("span", { style: `background:${color}` })),
+            ),
+            summary: palette.summary,
+          }),
+        ),
+      ),
+    ];
+  }
+
+  function includesList(items) {
+    return items?.length
+      ? h(
+          "span",
+          { class: "includes" },
+          h("span", { class: "includes-title", text: "Includes" }),
+          h(
+            "ul",
+            {},
+            items.map((item) => h("li", { text: item })),
+          ),
+        )
+      : null;
+  }
+
+  function upgradesStep() {
+    const groups = config.upgradeGroups.map((group) => [
+      h("h3", { class: "group-title is-muted", text: group.title }),
+      group.ids.some((id) => findUpgrade(id).group === "cladding")
+        ? h("p", { class: "note", text: "Choose one cladding upgrade. Window shrouds & screens go with either." })
+        : null,
+      h(
+        "ul",
+        { class: "choice-list" },
         group.ids.map((id) => {
           const item = findUpgrade(id);
-          return optionButton({
+          const required = isRequired(item);
+          return choice({
             key: `upgrade:${id}`,
             pressed: state.upgrades.has(id),
+            disabled: required,
             onclick: () => {
               stopPlayback();
               toggleUpgrade(id);
               render();
             },
-            lead: h("span", { class: "upgrade-number", text: item.number }),
-            name: item.name,
+            title: h("strong", { text: item.name }),
+            after: item.note
+              ? h("span", { class: "choice-note", text: required ? "Required for this design" : `(${item.note})` })
+              : null,
             summary: item.summary,
-            price: priceTag(upgradePriceLabel(item), "", true),
+            extra: includesList(item.includes),
+            price: item.price === null ? item.priceLabel : `Starting from ${formatPrice(item.price)}`,
           });
         }),
       ),
     ]);
     return [
-      ...heading(
-        "Upgrades",
-        "Add upgrades",
-        "Each upgrade appears on your pod as you add it. Abodo and aluminium cladding are alternatives, so choosing one replaces the other.",
-      ),
-      ...blocks.flat(),
+      h("p", { class: "lead" }, h("strong", { text: "Make it your home, your own." })),
+      h("p", {
+        class: "lead",
+        text: "Select from our range of premium upgrades and customise your new home to your lifestyle & budget (estimates only).",
+      }),
+      groups,
     ];
+  }
+
+  function estimateRow(line) {
+    return h(
+      "li",
+      { class: "estimate-row" },
+      h("span", { class: "choice-mark is-on", "aria-hidden": "true" }),
+      h(
+        "span",
+        { class: "estimate-body" },
+        h("span", { class: "estimate-title" }, line.id === "model" ? modelHeading() : line.title),
+        line.summary ? h("span", { class: "choice-summary", text: line.summary }) : null,
+        includesList(line.includes),
+      ),
+      h("span", { class: "estimate-price", text: line.display ?? formatPrice(line.value) }),
+    );
+  }
+
+  function modelHeading() {
+    const model = currentModel();
+    return ["The ", h("strong", { text: model.name }), ` | ${model.floorArea}`];
   }
 
   function estimateStep() {
     const summary = pricing();
-    const rows = summary.lines.map((line) =>
-      h(
-        "tr",
-        {},
-        h("th", { scope: "row" }, line.label, line.detail ? h("small", { text: line.detail }) : null),
-        h("td", { text: line.display ?? formatPrice(line.value) }),
-      ),
-    );
-    rows.push(
-      h("tr", {}, h("th", { scope: "row", text: "Options subtotal" }), h("td", { text: formatPrice(summary.options) })),
-    );
-    rows.push(
-      h(
-        "tr",
-        { class: "estimate-total" },
-        h("th", { scope: "row", text: "Estimated project value" }),
-        h("td", {
-          text:
-            summary.total === null
-              ? `Base + ${formatPrice(summary.options)}`
-              : formatPrice(summary.total),
-        }),
-      ),
-    );
     return [
-      ...heading("Estimate", "Your estimate"),
-      h("table", { class: "estimate" }, h("tbody", {}, rows)),
-      h("p", {
-        class: "note",
-        text:
-          (summary.basePrice === null
-            ? `The ${currentModel().name} base price is to be confirmed by NOOK. `
-            : "") +
-          (summary.hasPoa ? "Transport and delivery is priced on application. " : "") +
-          `Upgrade prices are "from" prices in ${config.currency}. ${config.priceNote}`,
-      }),
+      h("p", { class: "lead" }, h("strong", { text: "What's included:" })),
+      h("ul", { class: "estimate" }, summary.included.map(estimateRow)),
+      h("p", { class: "lead estimate-subtitle" }, h("strong", { text: "Optional upgrades selected:" })),
+      summary.optional.length
+        ? h("ul", { class: "estimate" }, summary.optional.map(estimateRow))
+        : h("p", { class: "note", text: "No optional upgrades selected yet." }),
+      h(
+        "p",
+        { class: "estimate-total" },
+        h("span", { text: "Your New Home Estimate" }),
+        h("strong", { text: formatPrice(summary.total) }),
+      ),
+      summary.hasPoa
+        ? h("p", { class: "note", text: "Plus transport & delivery, priced on application." })
+        : null,
     ];
   }
 
-  function detailsStep() {
-    const fields = DETAIL_FIELDS.map((field) => {
-      const error = state.errors[field.id];
-      return h(
-        "div",
-        { class: error ? "field has-error" : "field" },
-        h("label", { for: `field-${field.id}`, text: field.label }),
-        h("input", {
-          id: `field-${field.id}`,
-          name: field.id,
-          type: field.type,
-          autocomplete: field.autocomplete,
-          placeholder: field.placeholder || null,
-          value: state.customer[field.id],
-          required: true,
-          "aria-invalid": error ? "true" : "false",
-          "aria-describedby": error ? `error-${field.id}` : null,
-          oninput: (event) => {
-            state.customer[field.id] = event.target.value;
-          },
-        }),
-        error ? h("p", { class: "field-error", id: `error-${field.id}`, text: error }) : null,
+  function field(definition) {
+    const error = state.errors[definition.id];
+    const value = state.customer[definition.id] || "";
+    const common = {
+      id: `field-${definition.id}`,
+      name: definition.id,
+      required: definition.required || null,
+      "aria-invalid": error ? "true" : "false",
+      "aria-describedby": error ? `error-${definition.id}` : null,
+      oninput: (event) => {
+        state.customer[definition.id] = event.target.value;
+      },
+      onchange: (event) => {
+        state.customer[definition.id] = event.target.value;
+      },
+    };
+    let control;
+    if (definition.type === "select") {
+      control = h(
+        "select",
+        common,
+        h("option", { value: "", text: "Select", selected: !value }),
+        definition.options.map((option) => h("option", { value: option, text: option, selected: option === value })),
       );
-    });
+    } else if (definition.type === "textarea") {
+      control = h("textarea", { ...common, rows: "4" }, value);
+    } else {
+      control = h("input", {
+        ...common,
+        type: definition.type,
+        autocomplete: definition.autocomplete || null,
+        inputmode: definition.type === "number" ? "numeric" : null,
+        min: definition.type === "number" ? "10" : null,
+        value,
+      });
+    }
+    return h(
+      "div",
+      { class: `field${definition.type === "textarea" ? " is-wide" : ""}${error ? " has-error" : ""}` },
+      h("label", { for: `field-${definition.id}`, text: `${definition.label}${definition.required ? "*" : ""}` }),
+      control,
+      error ? h("p", { class: "field-error", id: `error-${definition.id}`, text: error }) : null,
+    );
+  }
+
+  function detailsStep() {
+    if (state.submitted) {
+      return confirmation();
+    }
     return [
-      ...heading(
-        "Your details",
-        "Where should we send your design?",
-        "We will email your summary to you and to the NOOK team, who will be in touch to talk it through.",
-      ),
+      h("p", { class: "lead" }, h("strong", { text: "Where should we send your New Home design?" })),
       state.sendError ? h("p", { class: "banner is-error", role: "alert", text: state.sendError }) : null,
       h(
         "form",
@@ -811,98 +923,65 @@
             submit();
           },
         },
-        fields,
+        config.detailFields.map(field),
         h(
           "div",
-          { class: "field" },
-          h("label", { for: "field-notes", text: "Anything we should know (optional)" }),
+          { class: "form-actions" },
           h(
-            "textarea",
-            {
-              id: "field-notes",
-              name: "notes",
-              rows: "3",
-              oninput: (event) => {
-                state.customer.notes = event.target.value;
-              },
-            },
-            state.customer.notes,
+            "button",
+            { class: "send-button", type: "submit", disabled: state.sending || null },
+            state.sending ? "Sending" : "Send my design",
+            h("span", { class: "send-arrow", html: ARROW }),
           ),
-        ),
-        h(
-          "label",
-          { class: state.errors.consent ? "consent field has-error" : "consent" },
-          h("input", {
-            type: "checkbox",
-            name: "consent",
-            checked: state.customer.consent,
-            onchange: (event) => {
-              state.customer.consent = event.target.checked;
-            },
-          }),
-          h("span", {
-            text: "I agree to NOOK contacting me about this design and storing these details for that purpose.",
+          h("p", {
+            class: "note",
+            text: "By sending, you agree to NOOK contacting you about this design.",
           }),
         ),
-        state.errors.consent ? h("p", { class: "field-error", text: state.errors.consent }) : null,
-        h("button", { type: "submit", hidden: true }),
       ),
     ];
   }
 
-  function summaryList() {
+  function summaryRows() {
+    const model = currentModel();
     const summary = pricing();
     const upgrades = config.upgrades
       .filter((item) => state.upgrades.has(item.id) && item.group !== "cladding")
       .map((item) => item.name);
-    const rows = [
-      ["Floor plan", `${currentModel().name} (${currentModel().range}, ${currentModel().size})`],
-      ["Roof", findRoof(state.roof).name],
+    return [
+      ["Design", `${modelTitle(model)} sq m (${collectionOf(model).name})`],
+      ["Roof", roofTitle(findRoof(state.roof))],
+      ["Specification", tierTitle(findTier(state.tier))],
       ["Colour palette", findPalette(state.palette).name],
       ["Cladding", claddingName(state.upgrades)],
       ["Upgrades", upgrades.length ? upgrades.join(", ") : "None"],
-      [
-        "Estimated value",
-        summary.total === null
-          ? `${formatPrice(summary.options)} in options, plus the base price (TBC)`
-          : formatPrice(summary.total),
-      ],
+      ["Your New Home Estimate", formatPrice(summary.total) + (summary.hasPoa ? " plus transport (POA)" : "")],
     ];
-    return rows;
   }
 
-  function summaryStep() {
-    const rows = summaryList();
-    const customer = state.customer;
+  function confirmation() {
     const testMode = !config.submitEndpoint;
     return [
-      ...heading("Summary", "Your NOOK design"),
-      h("p", {
-        class: testMode ? "banner" : "banner is-success",
-        role: "status",
-        text: testMode
-          ? "Test mode: no email was sent. On the live site this summary goes to you and to the NOOK team."
-          : `Thank you, ${customer.name}. Your design is on its way to ${customer.email} and the NOOK team.`,
-      }),
-      state.summaryImage
-        ? h("img", {
-            class: "summary-image",
-            src: state.summaryImage,
-            alt: byId("stage-layers").getAttribute("aria-label"),
+      testMode
+        ? h("p", {
+            class: "banner",
+            role: "status",
+            text: "Test build: no email was sent. On the live site your design goes to you and to the NOOK team.",
           })
+        : null,
+      h("p", { class: "confirm-title", text: "Your design is on its way to your inbox!" }),
+      h("p", { class: "lead", text: "We'll be in touch soon to chat about bringing it to life." }),
+      state.summaryImage
+        ? h("img", { class: "summary-image", src: state.summaryImage, alt: describe(state) })
         : null,
       h(
         "dl",
         { class: "summary-list" },
-        rows.map(([term, value]) => [h("dt", { text: term }), h("dd", { text: value })]),
+        summaryRows().map(([term, value]) => [h("dt", { text: term }), h("dd", { text: value })]),
         h("dt", { text: "Name" }),
-        h("dd", { text: customer.name }),
+        h("dd", { text: state.customer.name || "" }),
         h("dt", { text: "Email" }),
-        h("dd", { text: customer.email }),
-        h("dt", { text: "Phone" }),
-        h("dd", { text: customer.phone }),
-        h("dt", { text: "Build location" }),
-        h("dd", { text: customer.location }),
+        h("dd", { text: state.customer.email || "" }),
       ),
       h(
         "div",
@@ -911,7 +990,7 @@
           ? h("a", {
               class: "link-button",
               href: state.summaryImage,
-              download: `NOOK-${currentModel().name.replace(/\s+/g, "-")}-design.jpg`,
+              download: `NOOK-The-${currentModel().name.replace(/\s+/g, "-")}-design.jpg`,
               text: "Download image",
             })
           : null,
@@ -937,39 +1016,42 @@
   function validate() {
     const customer = state.customer;
     const errors = {};
-    if (customer.name.trim().length < 2) {
-      errors.name = "Please enter your name.";
+    for (const definition of config.detailFields) {
+      const value = String(customer[definition.id] || "").trim();
+      if (definition.required && !value) {
+        errors[definition.id] =
+          definition.type === "select" ? "Please choose an option." : `Please enter your ${definition.label.toLowerCase()}.`;
+      }
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customer.email.trim())) {
+    if (customer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customer.email.trim())) {
       errors.email = "Please enter a valid email address.";
     }
-    if (customer.phone.replace(/\D/g, "").length < 8) {
+    if (customer.phone && customer.phone.replace(/\D/g, "").length < 8) {
       errors.phone = "Please enter a phone number we can reach you on.";
-    }
-    if (customer.location.trim().length < 2) {
-      errors.location = "Please tell us where you plan to build.";
-    }
-    if (!customer.consent) {
-      errors.consent = "Please confirm we can contact you about this design.";
     }
     state.errors = errors;
     return Object.keys(errors).length === 0;
   }
 
-  function cropFor(bounds, sourceWidth, sourceHeight) {
+  function cropFor(bounds, sourceWidth, sourceHeight, padding = FRAME_PADDING, aspect = sourceWidth / sourceHeight) {
     if (!bounds) {
       return { x: 0, y: 0, width: sourceWidth, height: sourceHeight };
     }
-    const aspect = sourceWidth / sourceHeight;
-    let width = (bounds[2] - bounds[0] + 2 * FRAME_PADDING) * sourceWidth;
-    let height = (bounds[3] - bounds[1] + 2 * FRAME_PADDING) * sourceHeight;
+    let width = (bounds[2] - bounds[0] + 2 * padding) * sourceWidth;
+    let height = (bounds[3] - bounds[1] + 2 * padding) * sourceHeight;
     if (width / height > aspect) {
       height = width / aspect;
     } else {
       width = height * aspect;
     }
-    width = Math.min(width, sourceWidth);
-    height = Math.min(height, sourceHeight);
+    if (width > sourceWidth) {
+      width = sourceWidth;
+      height = width / aspect;
+    }
+    if (height > sourceHeight) {
+      height = sourceHeight;
+      width = height * aspect;
+    }
     const centreX = ((bounds[0] + bounds[2]) / 2) * sourceWidth;
     const centreY = ((bounds[1] + bounds[3]) / 2) * sourceHeight;
     return {
@@ -982,16 +1064,18 @@
 
   async function composeImage(width) {
     const layers = resolveStack(state);
-    const images = await Promise.all(layers.map((layer) => loadImage(layerUrl(layer.name, true))));
+    const images = await Promise.all(
+      layers.map((layer) => loadImage(layerUrl(layer.name, true)).catch(() => null)),
+    );
     const model = currentModel();
     const crop = cropFor(unionBounds(layers), model.imageWidth, model.imageHeight);
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = Math.round((width * crop.height) / crop.width);
     const context = canvas.getContext("2d");
-    context.fillStyle = "#f3f1ed";
+    context.fillStyle = STAGE_BACKGROUND;
     context.fillRect(0, 0, canvas.width, canvas.height);
-    for (const image of images) {
+    for (const image of images.filter(Boolean)) {
       context.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
     }
     return canvas.toDataURL("image/jpeg", 0.88);
@@ -1000,36 +1084,39 @@
   function escapeHtml(text) {
     return String(text).replace(
       /[&<>"']/g,
-      (character) =>
-        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character],
+      (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character],
     );
   }
 
-  function emailHtml(rows, customer, lines) {
+  function emailHtml(rows, customer, summary) {
     const tableRows = (pairs) =>
       pairs
         .map(
           ([term, value]) =>
             `<tr><td style="padding:6px 16px 6px 0;color:#6e6c69">${escapeHtml(term)}</td>` +
-            `<td style="padding:6px 0">${escapeHtml(value)}</td></tr>`,
+            `<td style="padding:6px 0;text-align:right">${escapeHtml(value)}</td></tr>`,
         )
         .join("");
-    const priceRows = lines.map((line) => [line.label, line.display ?? formatPrice(line.value)]);
+    const priceRows = [...summary.included, ...summary.optional].map((line) => [
+      line.title,
+      line.display ?? formatPrice(line.value),
+    ]);
+    priceRows.push(["Your New Home Estimate", formatPrice(summary.total)]);
     return (
       '<div style="font-family:Arial,Helvetica,sans-serif;color:#141414;max-width:640px">' +
       '<h1 style="font-weight:400;font-size:24px">Your NOOK design</h1>' +
       `<p>Hi ${escapeHtml(customer.name)}, here is the design you built in the NOOK configurator.</p>` +
       `<table style="border-collapse:collapse;font-size:14px">${tableRows(rows)}</table>` +
-      '<h2 style="font-weight:400;font-size:18px;margin-top:24px">Estimate</h2>' +
+      '<h2 style="font-weight:400;font-size:18px;margin-top:24px">Instant estimate</h2>' +
       `<table style="border-collapse:collapse;font-size:14px">${tableRows(priceRows)}</table>` +
-      `<p style="font-size:12px;color:#6e6c69">${escapeHtml(config.priceNote)}</p>` +
+      '<p style="font-size:12px;color:#6e6c69">Estimates only, in NZD. Subject to full specifications. Terms and conditions apply.</p>' +
       "</div>"
     );
   }
 
   function buildPayload(image) {
     const summary = pricing();
-    const rows = summaryList();
+    const rows = summaryRows();
     const customer = { ...state.customer };
     return {
       submittedAt: new Date().toISOString(),
@@ -1037,24 +1124,25 @@
       configuration: {
         model: state.model,
         roof: state.roof,
+        tier: state.tier,
         palette: state.palette,
         cladding: claddingFor(state.upgrades),
         upgrades: [...state.upgrades],
       },
       pricing: {
         currency: config.currency,
-        lines: summary.lines.map((line) => ({
-          label: line.label,
+        lines: [...summary.included, ...summary.optional].map((line) => ({
+          id: line.id,
+          label: line.title,
           value: line.value,
           display: line.display,
         })),
-        optionsTotal: summary.options,
         estimatedTotal: summary.total,
-        basePriceConfirmed: summary.basePrice !== null,
+        transportPoa: summary.hasPoa,
       },
       designUrl: location.href,
       imageDataUrl: image,
-      emailHtml: emailHtml(rows, customer, summary.lines),
+      emailHtml: emailHtml(rows, customer, summary),
     };
   }
 
@@ -1063,16 +1151,13 @@
       return;
     }
     if (!validate()) {
-      render();
-      const firstError = document.querySelector('[aria-invalid="true"], .consent.has-error input');
-      if (firstError) {
-        firstError.focus();
-      }
+      renderSections();
+      document.querySelector('#steps [aria-invalid="true"]')?.focus();
       return;
     }
     state.sending = true;
     state.sendError = "";
-    renderFooter();
+    renderSections();
     try {
       const image = await composeImage(1600);
       const payload = buildPayload(image);
@@ -1088,84 +1173,117 @@
       }
       state.summaryImage = image;
       state.submitted = true;
-      state.step = 6;
-      state.maxStep = 6;
     } catch (error) {
       state.sendError = "Sorry, we could not send your design just now. Please try again in a moment.";
     } finally {
       state.sending = false;
-      render();
+      renderSections();
+      byId("step-details").scrollIntoView({ block: "start" });
     }
   }
 
   function restart() {
-    state.step = 0;
-    state.maxStep = 0;
     state.roof = "box";
     state.palette = "A";
+    state.tier = availableTiers()[0].id;
     state.upgrades = new Set();
     state.submitted = false;
     state.summaryImage = "";
     state.errors = {};
+    enforceRules();
     render();
+    scrollToSection(0);
   }
 
   function select(key, value) {
     stopPlayback();
     state[key] = value;
+    enforceRules();
     render();
   }
 
-  function goTo(step) {
-    stopPlayback();
-    state.step = step;
-    state.maxStep = Math.max(state.maxStep, step);
-    render();
-    byId("panel-body").focus({ preventScroll: true });
-    byId("panel-body").scrollTop = 0;
+  const BUILDERS = {
+    design: designStep,
+    roof: roofStep,
+    specification: specificationStep,
+    palette: paletteStep,
+    upgrades: upgradesStep,
+    estimate: estimateStep,
+    details: detailsStep,
+  };
+
+  function buildSections() {
+    byId("steps").replaceChildren(
+      ...config.steps.map((step, index) =>
+        h(
+          "section",
+          { class: "step", id: `step-${step.id}`, "aria-labelledby": `step-${step.id}-title` },
+          h(
+            "div",
+            { class: "step-head" },
+            h("span", { class: "step-number", "aria-hidden": "true", text: String(index + 1) }),
+            h("h2", { class: "step-title", id: `step-${step.id}-title`, tabindex: "-1", text: step.title }),
+          ),
+          h("div", { class: "step-body", id: `step-${step.id}-body` }),
+        ),
+      ),
+    );
   }
 
-  function renderFooter() {
-    const summary = pricing();
-    const totalValue = byId("total-value");
-    const totalNote = byId("total-note");
-    if (summary.total === null) {
-      totalValue.textContent = summary.options ? `Base + ${formatPrice(summary.options)}` : "Base price";
-      totalNote.textContent = "Base price to be confirmed";
-    } else {
-      totalValue.textContent = formatPrice(summary.total);
-      totalNote.textContent = summary.hasPoa ? "Plus transport (POA)" : "Indicative, incl. selected options";
+  function renderSections() {
+    const focusedKey = document.activeElement?.dataset?.key;
+    for (const step of config.steps) {
+      const body = byId(`step-${step.id}-body`);
+      if (step.id === "details" && body.contains(document.activeElement) && !state.sending && !state.submitted) {
+        if (!Object.keys(state.errors).length) {
+          continue;
+        }
+      }
+      body.replaceChildren(...[BUILDERS[step.id]()].flat(Infinity).filter(Boolean));
     }
-    const back = byId("back-button");
-    const next = byId("next-button");
-    back.hidden = state.step === 0 || state.submitted;
-    next.hidden = state.submitted;
-    next.disabled = state.sending;
-    if (state.step === 5) {
-      next.textContent = state.sending ? "Sending" : "Send my design";
-    } else {
-      next.textContent = `Next: ${config.steps[state.step + 1]}`;
+    if (focusedKey) {
+      document.querySelector(`[data-key="${focusedKey}"]`)?.focus({ preventScroll: true });
     }
   }
 
   function render() {
-    stepper();
-    const body = byId("panel-body");
-    const focusedKey = document.activeElement?.dataset?.key;
-    const builders = [modelStep, roofStep, paletteStep, upgradesStep, estimateStep, detailsStep, summaryStep];
-    body.replaceChildren(...builders[state.step]().filter(Boolean));
-    if (focusedKey) {
-      body.querySelector(`[data-key="${focusedKey}"]`)?.focus({ preventScroll: true });
-    }
-    renderFooter();
+    renderSections();
+    renderProgress();
     if (!playback) {
       renderStage(state);
     }
     renderInteriors();
+    renderGallery();
+    const ready = spinReady(state);
+    byId("spin-toggle").hidden = !ready;
+    if (spin.active && !ready) {
+      toggleSpin(false);
+    } else if (spin.active) {
+      buildSpin();
+    }
     if (!state.submitted) {
       writeHash();
     }
-    prefetchForStep();
+  }
+
+  function watchSections() {
+    const sections = config.steps.map((step) => byId(`step-${step.id}`));
+    const visible = new Map();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          visible.set(entry.target, entry.isIntersecting);
+        }
+        const index = sections.findIndex((section) => visible.get(section));
+        if (index >= 0 && index !== state.section) {
+          state.section = index;
+          renderProgress();
+          prefetchForSection(index);
+        }
+      },
+      { rootMargin: "-40% 0px -50% 0px" },
+    );
+    sections.forEach((section) => observer.observe(section));
   }
 
   function sequenceView(frame) {
@@ -1177,11 +1295,16 @@
       stopPlayback();
       return;
     }
+    if (spin.active) {
+      toggleSpin(false);
+    }
     const button = byId("stage-play");
     const token = {};
     playback = token;
     button.textContent = "Preparing";
-    const names = new Set(config.buildSequence.flatMap((frame) => resolveStack(sequenceView(frame)).map((layer) => layer.name)));
+    const names = new Set(
+      config.buildSequence.flatMap((frame) => resolveStack(sequenceView(frame)).map((layer) => layer.name)),
+    );
     await Promise.all([...names].map((name) => loadImage(layerUrl(name)).catch(() => null)));
     if (playback !== token) {
       return;
@@ -1209,15 +1332,272 @@
     renderStage(state);
   }
 
-  function bindChrome() {
-    byId("back-button").addEventListener("click", () => goTo(Math.max(0, state.step - 1)));
-    byId("next-button").addEventListener("click", () => {
-      if (state.step === 5) {
-        submit();
+  const pad = (value) => String(value).padStart(2, "0");
+
+  function spinLayers(view, angle) {
+    const azimuth = ((config.spin.azimuth + (360 * angle) / config.spin.count) * Math.PI) / 180;
+    const fixed = [];
+    const free = [];
+    for (const entry of config.spin.stack) {
+      if (!matches(entry, view.upgrades)) {
+        continue;
+      }
+      const layer = { slot: entry.slot, name: fill(entry.src, view) };
+      if (entry.at) {
+        layer.depth = entry.at[0] * Math.sin(azimuth) - entry.at[1] * Math.cos(azimuth);
+        free.push(layer);
       } else {
-        goTo(Math.min(5, state.step + 1));
+        fixed.push(layer);
+      }
+    }
+    free.sort((a, b) => a.depth - b.depth);
+    return fixed.concat(free);
+  }
+
+  function spinReady(view) {
+    if (!spin.manifest || !currentModel().spin) {
+      return false;
+    }
+    const missing = new Set(spin.manifest.missing || []);
+    for (let angle = 0; angle < config.spin.count; angle += 1) {
+      for (const layer of spinLayers(view, angle)) {
+        if (!spin.manifest.layers[layer.name] || missing.has(`${layer.name}@${pad(angle)}`)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function spinUrl(name, angle) {
+    return `${currentModel().spin}${pad(angle)}/${name}${spin.suffix}.webp`;
+  }
+
+  function spinCrop(names, aspect) {
+    let union = null;
+    for (const name of names) {
+      for (const bounds of spin.manifest.layers[name] || []) {
+        union = mergeBounds(union, bounds);
+      }
+    }
+    return cropFor(union, config.spin.imageWidth, config.spin.imageHeight, SPIN_PADDING, aspect);
+  }
+
+  async function fetchBitmap(url) {
+    try {
+      const response = await fetch(url);
+      return response.ok ? await createImageBitmap(await response.blob()) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function angleOrder(start, count) {
+    const order = [start];
+    for (let step = 1; order.length < count; step += 1) {
+      for (const angle of [start + step, start - step]) {
+        const wrapped = ((angle % count) + count) % count;
+        if (!order.includes(wrapped)) {
+          order.push(wrapped);
+        }
+      }
+    }
+    return order;
+  }
+
+  function showSpinFrame() {
+    const count = config.spin.count;
+    let url = spin.frames[spin.angle];
+    for (let offset = 1; !url && offset < count; offset += 1) {
+      url = spin.frames[(spin.angle + offset) % count] || spin.frames[(spin.angle - offset + count) % count];
+    }
+    if (url) {
+      const image = byId("spin-image");
+      if (image.getAttribute("src") !== url) {
+        image.src = url;
+      }
+    }
+  }
+
+  async function buildSpin() {
+    const count = config.spin.count;
+    const view = { roof: state.roof, palette: state.palette, upgrades: new Set(state.upgrades) };
+    const perAngle = Array.from({ length: count }, (_, angle) => spinLayers(view, angle));
+    const stage = byId("stage");
+    const aspect = stage.clientWidth / stage.clientHeight;
+    const key = `${JSON.stringify(perAngle.map((layers) => layers.map((layer) => layer.name)))}|${aspect.toFixed(3)}`;
+    if (key === spin.key) {
+      showSpinFrame();
+      return;
+    }
+    const token = {};
+    spin.token = token;
+    cancelIntro();
+    const names = [...new Set(perAngle.flat().filter((layer) => layer.slot !== "shadow").map((layer) => layer.name))];
+    const crop = spinCrop(names, aspect);
+    const scale = spin.suffix ? 0.5 : 1;
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.round(Math.min(crop.width * scale, stage.clientWidth * ratio));
+    const height = Math.round(width / aspect);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    const frames = new Array(count).fill(null);
+    const order = angleOrder(spin.angle, count);
+    const fetches = new Map();
+    const request = (angle) => {
+      if (!fetches.has(angle)) {
+        fetches.set(angle, Promise.all(perAngle[angle].map((layer) => fetchBitmap(spinUrl(layer.name, angle)))));
+      }
+      return fetches.get(angle);
+    };
+    let adopted = false;
+    for (let index = 0; index < order.length; index += 1) {
+      const angle = order[index];
+      order.slice(index + 1, index + 3).forEach(request);
+      const bitmaps = await request(angle);
+      fetches.delete(angle);
+      if (spin.token !== token) {
+        bitmaps.forEach((bitmap) => bitmap?.close());
+        if (spin.frames !== frames) {
+          frames.forEach((url) => url && URL.revokeObjectURL(url));
+        }
+        return;
+      }
+      context.fillStyle = STAGE_BACKGROUND;
+      context.fillRect(0, 0, width, height);
+      for (const bitmap of bitmaps) {
+        if (bitmap) {
+          context.drawImage(
+            bitmap,
+            crop.x * scale,
+            crop.y * scale,
+            crop.width * scale,
+            crop.height * scale,
+            0,
+            0,
+            width,
+            height,
+          );
+          bitmap.close();
+        }
+      }
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      frames[angle] = URL.createObjectURL(blob);
+      if (!adopted) {
+        adopted = true;
+        spin.frames.forEach((url) => url && URL.revokeObjectURL(url));
+        spin.frames = frames;
+        byId("spin-view").hidden = false;
+        byId("stage-layers").classList.add("is-hidden");
+      }
+      showSpinFrame();
+      setStatus(index + 1 < count ? `Loading 360 view ${index + 1} of ${count}` : "");
+    }
+    if (spin.token === token) {
+      spin.key = key;
+      playIntro();
+    }
+  }
+
+  function setSpinAngle(angle) {
+    const count = config.spin.count;
+    spin.angle = ((angle % count) + count) % count;
+    showSpinFrame();
+  }
+
+  function cancelIntro() {
+    if (spin.intro) {
+      window.clearInterval(spin.intro);
+      spin.intro = null;
+    }
+  }
+
+  function playIntro() {
+    if (spin.played || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    spin.played = true;
+    let steps = 0;
+    spin.intro = window.setInterval(() => {
+      steps += 1;
+      setSpinAngle(spin.angle + 1);
+      if (steps >= config.spin.count) {
+        cancelIntro();
+      }
+    }, SPIN_INTRO_MS);
+  }
+
+  function toggleSpin(force) {
+    const active = force ?? !spin.active;
+    spin.active = active;
+    const button = byId("spin-toggle");
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+    button.textContent = active ? "Exit 360 view" : "360 view";
+    byId("spin-controls").hidden = !active;
+    byId("stage").classList.toggle("is-spinning", active);
+    if (active) {
+      stopPlayback();
+      byId("stage").setAttribute("tabindex", "0");
+      buildSpin();
+    } else {
+      spin.token = null;
+      spin.key = "";
+      cancelIntro();
+      setStatus("");
+      byId("spin-view").hidden = true;
+      byId("stage-layers").classList.remove("is-hidden");
+      byId("stage").removeAttribute("tabindex");
+    }
+  }
+
+  function bindSpin() {
+    const stage = byId("stage");
+    byId("spin-toggle").addEventListener("click", () => toggleSpin());
+    byId("spin-left").innerHTML = CHEVRON;
+    byId("spin-right").innerHTML = CHEVRON;
+    byId("spin-left").addEventListener("click", () => {
+      cancelIntro();
+      setSpinAngle(spin.angle + 1);
+    });
+    byId("spin-right").addEventListener("click", () => {
+      cancelIntro();
+      setSpinAngle(spin.angle - 1);
+    });
+    stage.addEventListener("pointerdown", (event) => {
+      if (!spin.active || event.target.closest("button")) {
+        return;
+      }
+      cancelIntro();
+      spin.drag = { x: event.clientX, angle: spin.angle };
+      stage.setPointerCapture(event.pointerId);
+    });
+    stage.addEventListener("pointermove", (event) => {
+      if (!spin.drag) {
+        return;
+      }
+      const stepWidth = Math.max(8, stage.clientWidth / 48);
+      setSpinAngle(spin.drag.angle - Math.round((event.clientX - spin.drag.x) / stepWidth));
+    });
+    const release = () => {
+      spin.drag = null;
+    };
+    stage.addEventListener("pointerup", release);
+    stage.addEventListener("pointercancel", release);
+    stage.addEventListener("keydown", (event) => {
+      if (!spin.active) {
+        return;
+      }
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        cancelIntro();
+        setSpinAngle(spin.angle + (event.key === "ArrowLeft" ? 1 : -1));
       }
     });
+  }
+
+  function bindChrome() {
     byId("stage-play").addEventListener("click", playSequence);
     byId("lightbox-close").addEventListener("click", closeLightbox);
     byId("lightbox").addEventListener("click", (event) => {
@@ -1228,7 +1608,12 @@
     let resizeTimer = 0;
     window.addEventListener("resize", () => {
       window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(() => frameStage(framedBounds, false), 120);
+      resizeTimer = window.setTimeout(() => {
+        frameStage(framedBounds, false);
+        if (spin.active) {
+          buildSpin();
+        }
+      }, 160);
     });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !byId("lightbox").hidden) {
@@ -1237,32 +1622,53 @@
     });
   }
 
+  async function loadJson(url) {
+    const response = await fetch(url, { cache: "no-cache" });
+    if (!response.ok) {
+      throw new Error(`${url} answered ${response.status}`);
+    }
+    return response.json();
+  }
+
   async function init() {
     try {
-      const response = await fetch("data/configurator.json", { cache: "no-cache" });
-      config = await response.json();
+      config = await loadJson("data/configurator.json");
     } catch (error) {
-      byId("panel-body").textContent = "The configurator could not load its data. Please refresh the page.";
+      byId("steps").textContent = "The configurator could not load its data. Please refresh the page.";
       return;
     }
     money = new Intl.NumberFormat(config.locale, {
       style: "currency",
       currency: config.currency,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     });
+    const model = currentModel();
     try {
-      const manifest = await (await fetch(`${currentModel().layers}manifest.json`, { cache: "no-cache" })).json();
+      const manifest = await loadJson(`${model.layers}manifest.json`);
       layerBounds = Object.fromEntries(
         Object.entries(manifest.layers).map(([name, entry]) => [name, entry.bounds]),
       );
     } catch (error) {
       layerBounds = {};
     }
+    if (model.spin && config.spin) {
+      try {
+        spin.manifest = await loadJson(`${model.spin}manifest.json`);
+      } catch (error) {
+        spin.manifest = null;
+      }
+    }
     const stageWidth = byId("stage").clientWidth || window.innerWidth;
-    layerSuffix = stageWidth * (window.devicePixelRatio || 1) > 1400 ? "" : "-1280";
+    const deviceWidth = stageWidth * (window.devicePixelRatio || 1);
+    layerSuffix = deviceWidth > 1400 ? "" : "-1280";
+    spin.suffix = deviceWidth > 1300 ? "" : "-1200";
     readHash();
+    buildSections();
     bindChrome();
+    bindSpin();
     render();
+    watchSections();
   }
 
   init();
