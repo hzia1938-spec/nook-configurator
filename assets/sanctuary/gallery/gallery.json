@@ -1,0 +1,145 @@
+{
+ "model": "sanctuary",
+ "exterior": [
+  {
+   "file": "exterior/hero",
+   "width": 1920,
+   "height": 1080,
+   "caption": "Hero"
+  },
+  {
+   "file": "exterior/front",
+   "width": 1920,
+   "height": 1080,
+   "caption": "Front"
+  },
+  {
+   "file": "exterior/deck-pergola",
+   "width": 1920,
+   "height": 1080,
+   "caption": "Deck and pergola"
+  },
+  {
+   "file": "exterior/rear",
+   "width": 1920,
+   "height": 1080,
+   "caption": "Rear"
+  },
+  {
+   "file": "exterior/aerial",
+   "width": 1920,
+   "height": 1080,
+   "caption": "Aerial"
+  },
+  {
+   "file": "exterior/plan-3d",
+   "width": 1920,
+   "height": 1080,
+   "caption": "3D floor plan"
+  },
+  {
+   "file": "exterior/roof-box",
+   "width": 1920,
+   "height": 1080,
+   "caption": "Box roof"
+  },
+  {
+   "file": "exterior/roof-gable",
+   "width": 1920,
+   "height": 1080,
+   "caption": "Gable roof"
+  },
+  {
+   "file": "exterior/roof-mono",
+   "width": 1920,
+   "height": 1080,
+   "caption": "Mono roof"
+  },
+  {
+   "file": "exterior/roof-tilt",
+   "width": 1920,
+   "height": 1080,
+   "caption": "Tilt roof"
+  }
+ ],
+ "interior": {
+  "A": [
+   {
+    "file": "A/living",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Living"
+   },
+   {
+    "file": "A/kitchen",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Kitchen"
+   },
+   {
+    "file": "A/bedroom",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Bedroom"
+   },
+   {
+    "file": "A/bathroom",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Bathroom"
+   }
+  ],
+  "B": [
+   {
+    "file": "B/living",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Living"
+   },
+   {
+    "file": "B/kitchen",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Kitchen"
+   },
+   {
+    "file": "B/bedroom",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Bedroom"
+   },
+   {
+    "file": "B/bathroom",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Bathroom"
+   }
+  ],
+  "C": [
+   {
+    "file": "C/living",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Living"
+   },
+   {
+    "file": "C/kitchen",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Kitchen"
+   },
+   {
+    "file": "C/bedroom",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Bedroom"
+   },
+   {
+    "file": "C/bathroom",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Bathroom"
+   }
+  ]
+ }
+}

@@ -1,0 +1,205 @@
+{
+ "model": "pavilion",
+ "exterior": [
+  {
+   "file": "exterior/hero-golden-hour",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Golden hour"
+  },
+  {
+   "file": "exterior/hero-dusk",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Dusk"
+  },
+  {
+   "file": "exterior/front-golden-hour",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Front"
+  },
+  {
+   "file": "exterior/garden",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Garden view"
+  },
+  {
+   "file": "exterior/entry",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Entry"
+  },
+  {
+   "file": "exterior/rear",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Rear"
+  },
+  {
+   "file": "exterior/aerial",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Aerial"
+  },
+  {
+   "file": "exterior/roof-box",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Box roof"
+  },
+  {
+   "file": "exterior/roof-gable",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Gable roof"
+  },
+  {
+   "file": "exterior/roof-mono",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Mono roof"
+  },
+  {
+   "file": "exterior/roof-tilt",
+   "width": 1920,
+   "height": 1081,
+   "caption": "Tilt roof"
+  }
+ ],
+ "interior": {
+  "A": [
+   {
+    "file": "A/lounge",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Lounge"
+   },
+   {
+    "file": "A/kitchen",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Kitchen"
+   },
+   {
+    "file": "A/fireplace",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Fireplace"
+   },
+   {
+    "file": "A/bedroom",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Bedroom"
+   },
+   {
+    "file": "A/study",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Study nook"
+   },
+   {
+    "file": "A/bathroom",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Bathroom"
+   },
+   {
+    "file": "A/toilet",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Bathroom toilet"
+   }
+  ],
+  "B": [
+   {
+    "file": "B/lounge",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Lounge"
+   },
+   {
+    "file": "B/kitchen",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Kitchen"
+   },
+   {
+    "file": "B/fireplace",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Fireplace"
+   },
+   {
+    "file": "B/bedroom",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Bedroom"
+   },
+   {
+    "file": "B/study",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Study nook"
+   },
+   {
+    "file": "B/bathroom",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Bathroom"
+   },
+   {
+    "file": "B/toilet",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Bathroom toilet"
+   }
+  ],
+  "C": [
+   {
+    "file": "C/lounge",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Lounge"
+   },
+   {
+    "file": "C/kitchen",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Kitchen"
+   },
+   {
+    "file": "C/fireplace",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Fireplace"
+   },
+   {
+    "file": "C/bedroom",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Bedroom"
+   },
+   {
+    "file": "C/study",
+    "width": 1920,
+    "height": 1080,
+    "caption": "Study nook"
+   },
+   {
+    "file": "C/bathroom",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Bathroom"
+   },
+   {
+    "file": "C/toilet",
+    "width": 1920,
+    "height": 1081,
+    "caption": "Bathroom toilet"
+   }
+  ]
+ }
+}

@@ -4,17 +4,21 @@
   const FADE_MS = 320;
   const FRAME_MS = 1500;
   const FRAME_PADDING = 0.07;
-  const SPIN_PADDING = 0.04;
   const MAX_ZOOM = 1.75;
-  const SPIN_INTRO_MS = 70;
   const STAGE_BACKGROUND = "#ffffff";
-  const CHEVRON =
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+  const SHARE_WIDTH = 1600;
+  const SHARE_HEIGHT = 1120;
+  const SHARE_BAND = 220;
+  const SHARE_MARGIN = 72;
+  const SWIPE_DISTANCE = 40;
+  const FONT_STACK = 'Archivo, "Helvetica Neue", Helvetica, Arial, sans-serif';
   const ARROW =
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+  const CHEVRON =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 
   const state = {
-    model: "pavilion",
+    model: null,
     roof: "box",
     tier: "freedom",
     palette: "A",
@@ -24,29 +28,19 @@
     submitted: false,
     sending: false,
     sendError: "",
-    summaryImage: "",
-    section: 0,
+    step: 0,
   };
 
-  const spin = {
-    active: false,
-    angle: 0,
-    manifest: null,
-    suffix: "",
-    key: "",
-    frames: [],
-    token: null,
-    intro: null,
-    drag: null,
-  };
+  const gallery = { items: [], index: 0, model: "", palette: "", token: 0, swipeStart: null };
+  const share = { key: "", canvas: null, file: null, token: null, message: "" };
 
   let config = null;
   let money = null;
   let layerSuffix = "";
   let playback = null;
-  let lastFocus = null;
-  let layerBounds = {};
   let framedBounds = null;
+  const manifests = new Map();
+  const galleries = new Map();
   const slots = new Map();
   const prefetched = new Set();
 
@@ -78,7 +72,8 @@
     return node;
   }
 
-  const currentModel = () => config.models.find((item) => item.id === state.model);
+  const findModel = (id) => config.models.find((item) => item.id === id);
+  const currentModel = () => findModel(state.model);
   const collectionOf = (model) => config.collections.find((item) => item.id === model.collection);
   const findRoof = (id) => config.roofs.find((item) => item.id === id);
   const findTier = (id) => config.tiers.find((item) => item.id === id);
@@ -86,6 +81,24 @@
   const findUpgrade = (id) => config.upgrades.find((item) => item.id === id);
   const availableTiers = () => collectionOf(currentModel()).tiers.map(findTier);
   const formatPrice = (value) => money.format(value);
+  const formatNumber = (value) => String(Math.round(value * 10) / 10);
+
+  function isAvailable(model) {
+    const manifest = manifests.get(model.id);
+    return Boolean(manifest && manifest.layers && !(manifest.missing || []).length);
+  }
+
+  function defaultModelId() {
+    const preferred = config.defaultModel && findModel(config.defaultModel);
+    if (preferred && isAvailable(preferred)) {
+      return preferred.id;
+    }
+    return config.models.find(isAvailable)?.id || null;
+  }
+
+  function layerBounds(name) {
+    return manifests.get(state.model)?.layers?.[name]?.bounds || null;
+  }
 
   function isRequired(item) {
     return item.requiredOver !== undefined && currentModel().floorArea > item.requiredOver;
@@ -96,8 +109,10 @@
       state.tier = availableTiers()[0].id;
     }
     for (const item of config.upgrades) {
-      if (isRequired(item)) {
-        state.upgrades.add(item.id);
+      if (item.requiredOver !== undefined) {
+        if (isRequired(item)) {
+          state.upgrades.add(item.id);
+        }
       }
     }
   }
@@ -125,12 +140,24 @@
     return roof.label ? `${roof.name.toUpperCase()} - ${roof.label}` : roof.name.toUpperCase();
   }
 
+  function roofSummary(roof, model = currentModel()) {
+    const pitch = model.roofPitch?.[roof.id];
+    if (pitch !== undefined && roof.pitchSummary) {
+      return roof.pitchSummary.replace("{pitch}", formatNumber(pitch));
+    }
+    return roof.summary;
+  }
+
   function tierTitle(tier) {
     return `${tier.name.toUpperCase()} - ${tier.label}`;
   }
 
   function modelTitle(model) {
     return `The ${model.name} | ${model.floorArea}`;
+  }
+
+  function gstNote() {
+    return config.pricesIncludeGst ? "All prices are in NZD and include GST." : "All prices are in NZD.";
   }
 
   function pricing() {
@@ -145,7 +172,7 @@
       {
         id: "roof",
         title: roofTitle(roof),
-        summary: roof.summary,
+        summary: roofSummary(roof),
         value: roofCost,
         display: roofCost ? null : "Included",
       },
@@ -177,6 +204,10 @@
 
   function readHash() {
     const params = new URLSearchParams(location.hash.slice(1));
+    const model = findModel(params.get("model"));
+    if (model && isAvailable(model)) {
+      state.model = model.id;
+    }
     if (findRoof(params.get("roof"))) {
       state.roof = params.get("roof");
     }
@@ -190,11 +221,15 @@
     for (const id of (params.get("upgrades") || "").split(",").filter((value) => findUpgrade(value))) {
       toggleUpgrade(id, true);
     }
-    enforceRules();
   }
 
   function writeHash() {
-    const params = new URLSearchParams({ roof: state.roof, tier: state.tier, palette: state.palette });
+    const params = new URLSearchParams({
+      model: state.model,
+      roof: state.roof,
+      tier: state.tier,
+      palette: state.palette,
+    });
     if (state.upgrades.size) {
       params.set("upgrades", [...state.upgrades].join(","));
     }
@@ -223,10 +258,7 @@
   }
 
   function matches(entry, upgrades) {
-    return (
-      (entry.when || []).every((id) => upgrades.has(id)) &&
-      !(entry.unless || []).some((id) => upgrades.has(id))
-    );
+    return (entry.when || []).every((id) => upgrades.has(id)) && !(entry.unless || []).some((id) => upgrades.has(id));
   }
 
   function fill(source, view) {
@@ -283,7 +315,7 @@
 
   function unionBounds(layers) {
     return layers.reduce(
-      (union, layer) => (layer.slot === "shadow" ? union : mergeBounds(union, layerBounds[layer.name])),
+      (union, layer) => (layer.slot === "shadow" ? union : mergeBounds(union, layerBounds(layer.name))),
       null,
     );
   }
@@ -306,6 +338,9 @@
     }
     const width = container.clientWidth;
     const height = container.clientHeight;
+    if (!width || !height) {
+      return;
+    }
     const rect = imageRect(width, height);
     const left = rect.x + bounds[0] * rect.width;
     const top = rect.y + bounds[1] * rect.height;
@@ -328,16 +363,16 @@
   function renderStage(view, label) {
     const container = byId("stage-layers");
     const layers = resolveStack(view);
-    const wanted = new Map(layers.map((layer) => [layer.slot, layer.name]));
+    const wanted = new Map(layers.map((layer) => [layer.slot, layerUrl(layer.name)]));
     frameStage(unionBounds(layers));
     let pending = 0;
     slotOrder().forEach((slot, index) => {
-      const name = wanted.get(slot);
+      const url = wanted.get(slot);
       const current = slots.get(slot);
-      if (current && current.name === name) {
+      if (current && current.url === url) {
         return;
       }
-      if (!name) {
+      if (!url) {
         if (current) {
           container.querySelectorAll(`img[data-slot="${slot}"]`).forEach(retire);
           slots.delete(slot);
@@ -347,9 +382,10 @@
       const image = new Image();
       image.alt = "";
       image.decoding = "async";
+      image.draggable = false;
       image.dataset.slot = slot;
       image.style.zIndex = String(index + 1);
-      const record = { name, image };
+      const record = { url, image };
       slots.set(slot, record);
       pending += 1;
       setStatus("Loading");
@@ -370,7 +406,7 @@
         pending -= 1;
         setStatus(pending === 0 ? "Image missing" : "Loading");
       };
-      image.src = layerUrl(name);
+      image.src = url;
     });
     updateCaption(view, label);
   }
@@ -386,6 +422,10 @@
       `The ${currentModel().name} with a ${roof.name.toLowerCase()} roof in ${palette.name}` +
       (upgrades.length ? `, with ${upgrades.join(", ")}` : "")
     );
+  }
+
+  function designLine(view = state) {
+    return `The ${currentModel().name} / ${findRoof(view.roof).name} roof / ${findPalette(view.palette).name}`;
   }
 
   function updateCaption(view, label) {
@@ -409,13 +449,15 @@
         return;
       }
       prefetched.add(url);
-      loadImage(url).catch(() => {}).finally(next);
+      loadImage(url)
+        .catch(() => {})
+        .finally(next);
     };
     next();
     next();
   }
 
-  function prefetchForSection(index) {
+  function prefetchForStep(index) {
     const id = config.steps[index]?.id;
     const names = [];
     if (id === "roof") {
@@ -445,125 +487,214 @@
     }
   }
 
-  function renderInteriors() {
-    const strip = byId("interior-strip");
-    const items = config.upgrades.filter((item) => item.interior && state.upgrades.has(item.id));
-    strip.hidden = items.length === 0;
-    strip.replaceChildren(
-      ...items.map((item) =>
+  async function loadGallery(model) {
+    if (!model.gallery) {
+      return null;
+    }
+    if (!galleries.has(model.id)) {
+      galleries.set(
+        model.id,
+        loadJson(`${model.gallery}gallery.json`).catch(() => null),
+      );
+    }
+    return galleries.get(model.id);
+  }
+
+  function galleryItems(model, data) {
+    const darkUrban = findPalette("A");
+    const items = (data.exterior || []).map((entry) => ({
+      ...entry,
+      group: "Exterior",
+      caption: `The ${model.name} in ${darkUrban.name}: ${entry.caption}`,
+    }));
+    const interiors = data.interior || {};
+    const key = interiors[state.palette] ? state.palette : Object.keys(interiors)[0];
+    const palette = findPalette(key);
+    for (const entry of interiors[key] || []) {
+      items.push({
+        ...entry,
+        group: "Interior",
+        caption: `The ${model.name} in ${palette.name}: ${entry.caption}`,
+      });
+    }
+    return items;
+  }
+
+  async function renderGallery() {
+    const model = currentModel();
+    if (gallery.model === model.id && gallery.palette === state.palette && gallery.items.length) {
+      return;
+    }
+    const section = byId("inspiration");
+    const token = ++gallery.token;
+    const data = await loadGallery(model);
+    if (token !== gallery.token) {
+      return;
+    }
+    if (!data || !(data.exterior || []).length) {
+      section.hidden = true;
+      gallery.items = [];
+      gallery.model = model.id;
+      gallery.palette = state.palette;
+      return;
+    }
+    section.hidden = false;
+    const sameModel = gallery.model === model.id;
+    const previous = gallery.items[gallery.index];
+    gallery.items = galleryItems(model, data);
+    gallery.model = model.id;
+    gallery.palette = state.palette;
+    let index = 0;
+    if (sameModel && previous) {
+      const slug = previous.file.split("/").pop();
+      const kept = gallery.items.findIndex(
+        (item) => item.group === previous.group && item.file.split("/").pop() === slug,
+      );
+      index = kept >= 0 ? kept : 0;
+    }
+    buildThumbs(model);
+    showGalleryImage(index, sameModel);
+  }
+
+  function galleryUrl(model, item, thumb = false) {
+    return `${model.gallery}${item.file}${thumb ? "-thumb" : ""}.jpg`;
+  }
+
+  function buildThumbs(model) {
+    const groups = [...new Set(gallery.items.map((item) => item.group))];
+    byId("carousel-groups").replaceChildren(
+      ...groups.map((group) =>
         h(
           "button",
           {
-            class: "interior-card",
             type: "button",
-            "aria-label": `View ${item.interiorCaption.toLowerCase()}`,
-            onclick: (event) => openLightbox(interiorMedia(item), item.interiorCaption, event.currentTarget),
+            class: "carousel-group",
+            "data-group": group,
+            onclick: () => showGalleryImage(gallery.items.findIndex((item) => item.group === group)),
           },
-          item.interior === "smart"
-            ? h("span", { class: "smart-thumb", "aria-hidden": "true", text: "Panel" })
-            : h("img", { src: interiorUrl(item), alt: "", loading: "lazy", width: "96", height: "60" }),
+          `${group} (${gallery.items.filter((item) => item.group === group).length})`,
+        ),
+      ),
+    );
+    byId("carousel-thumbs").replaceChildren(
+      ...gallery.items.map((item, index) =>
+        h(
+          "li",
+          {},
           h(
-            "span",
-            {},
-            h("span", { class: "interior-eyebrow", text: "Inside" }),
-            h("span", { text: item.interiorCaption }),
+            "button",
+            {
+              type: "button",
+              class: "carousel-thumb",
+              "aria-label": `Show ${item.caption}`,
+              onclick: () => showGalleryImage(index),
+            },
+            h("img", {
+              src: galleryUrl(model, item, true),
+              alt: "",
+              loading: "lazy",
+              draggable: "false",
+              width: "160",
+              height: "90",
+            }),
           ),
         ),
       ),
     );
   }
 
-  function interiorUrl(item) {
-    return `${currentModel().interiors}${item.interior}_${state.palette}.jpg`;
-  }
-
-  function interiorMedia(item) {
-    return item.interior === "smart"
-      ? smartPanel()
-      : h("img", { src: interiorUrl(item), alt: item.interiorCaption });
-  }
-
-  function smartPanel() {
-    const tile = (title, detail, value, on) =>
-      h(
-        "div",
-        { class: on ? "smart-tile is-on" : "smart-tile" },
-        h("span", { text: title }),
-        h("span", { text: detail }),
-        h("strong", { text: value }),
-      );
-    return h(
-      "div",
-      { class: "smart-panel" },
-      h("div", { class: "smart-head" }, h("strong", { text: "NOOK Home" }), h("span", { text: "Evening" })),
-      h(
-        "div",
-        { class: "smart-grid" },
-        tile("Lights", "Lounge scene", "60%", true),
-        tile("Climate", "Heat pump", "21 C", false),
-        tile("Security", "Doors locked", "Armed", false),
-        tile("Energy", "Solar now", "3.2 kW", true),
-        tile("Battery", "Stored", "84%", false),
-        tile("Water", "Tank level", "72%", false),
-      ),
-    );
-  }
-
-  function renderGallery() {
-    const model = currentModel();
-    const grid = byId("gallery-grid");
-    byId("gallery").hidden = !model.gallery;
-    if (!model.gallery) {
-      grid.replaceChildren();
+  function showGalleryImage(index, scrollThumb = true) {
+    const count = gallery.items.length;
+    if (!count) {
       return;
     }
-    const palette = findPalette(state.palette);
-    grid.replaceChildren(
-      ...config.gallery.map((item) => {
-        const base = `${model.gallery}${state.palette}/${item.file}`;
-        const caption = `The ${model.name} in ${palette.name}: ${item.caption.toLowerCase()}`;
-        return h(
-          "li",
-          {},
-          h(
-            "button",
-            {
-              class: "gallery-item",
-              type: "button",
-              "aria-label": `Enlarge ${caption}`,
-              onclick: (event) =>
-                openLightbox(h("img", { src: `${base}.jpg`, alt: caption }), caption, event.currentTarget),
-            },
-            h("img", { src: `${base}-thumb.jpg`, alt: "", loading: "lazy", width: "480", height: "270" }),
-          ),
-        );
-      }),
-    );
-  }
-
-  function openLightbox(media, caption, trigger) {
-    lastFocus = trigger;
-    byId("lightbox-media").replaceChildren(media);
-    byId("lightbox-caption").textContent = caption;
-    byId("lightbox").hidden = false;
-    byId("lightbox-close").focus();
-  }
-
-  function closeLightbox() {
-    byId("lightbox").hidden = true;
-    if (lastFocus) {
-      lastFocus.focus();
+    gallery.index = ((index % count) + count) % count;
+    const model = currentModel();
+    const item = gallery.items[gallery.index];
+    const image = byId("carousel-image");
+    const url = galleryUrl(model, item);
+    image.classList.add("is-loading");
+    loadImage(url)
+      .then(() => {
+        if (gallery.items[gallery.index] !== item) {
+          return;
+        }
+        image.src = url;
+        image.alt = item.caption;
+        image.classList.toggle("is-portrait", item.height > item.width);
+        image.classList.remove("is-loading");
+      })
+      .catch(() => {
+        image.classList.remove("is-loading");
+      });
+    byId("carousel-caption").textContent = item.caption;
+    byId("carousel-count").textContent = `${gallery.index + 1} / ${count}`;
+    document.querySelectorAll(".carousel-group").forEach((button) => {
+      button.classList.toggle("is-current", button.dataset.group === item.group);
+    });
+    const thumbs = byId("carousel-thumbs").querySelectorAll(".carousel-thumb");
+    thumbs.forEach((button, thumbIndex) => {
+      const current = thumbIndex === gallery.index;
+      button.classList.toggle("is-current", current);
+      button.setAttribute("aria-current", current ? "true" : "false");
+      if (current && scrollThumb) {
+        const strip = byId("carousel-thumbs");
+        const left = button.offsetLeft - (strip.clientWidth - button.clientWidth) / 2;
+        strip.scrollTo({ left, behavior: reducedMotion() ? "auto" : "smooth" });
+      }
+    });
+    for (const neighbour of [gallery.index + 1, gallery.index - 1]) {
+      const other = gallery.items[((neighbour % count) + count) % count];
+      loadImage(galleryUrl(model, other)).catch(() => {});
     }
+  }
+
+  function reducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function bindGallery() {
+    const frame = byId("carousel-frame");
+    byId("carousel-prev").addEventListener("click", () => showGalleryImage(gallery.index - 1));
+    byId("carousel-next").addEventListener("click", () => showGalleryImage(gallery.index + 1));
+    byId("carousel").addEventListener("keydown", (event) => {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        showGalleryImage(gallery.index + (event.key === "ArrowLeft" ? -1 : 1));
+      }
+    });
+    frame.addEventListener("pointerdown", (event) => {
+      if (event.target.closest("button")) {
+        return;
+      }
+      gallery.swipeStart = { x: event.clientX, y: event.clientY };
+    });
+    frame.addEventListener("pointerup", (event) => {
+      if (!gallery.swipeStart) {
+        return;
+      }
+      const distanceX = event.clientX - gallery.swipeStart.x;
+      const distanceY = event.clientY - gallery.swipeStart.y;
+      gallery.swipeStart = null;
+      if (Math.abs(distanceX) > SWIPE_DISTANCE && Math.abs(distanceX) > Math.abs(distanceY)) {
+        showGalleryImage(gallery.index + (distanceX < 0 ? 1 : -1));
+      }
+    });
+    frame.addEventListener("pointercancel", () => {
+      gallery.swipeStart = null;
+    });
+    frame.addEventListener("contextmenu", (event) => event.preventDefault());
   }
 
   function renderProgress() {
     const steps = config.steps;
+    const last = state.step === steps.length - 1;
     byId("progress").replaceChildren(
       h(
         "p",
         { class: "progress-label" },
-        h("span", { text: `Step ${state.section + 1} of ${steps.length}` }),
-        h("span", { text: steps[state.section].label }),
+        h("span", { text: `Step ${state.step + 1} of ${steps.length}` }),
+        h("span", { text: steps[state.step].label }),
       ),
       h(
         "ol",
@@ -574,25 +705,41 @@
             {},
             h("button", {
               type: "button",
-              class: index === state.section ? "is-current" : "",
+              class: index === state.step ? "is-current" : index < state.step ? "is-done" : "",
               "aria-label": `Step ${index + 1}: ${step.label}`,
-              "aria-current": index === state.section ? "step" : null,
-              onclick: () => scrollToSection(index),
+              "aria-current": index === state.step ? "step" : null,
+              onclick: () => goToStep(index),
             }),
           ),
         ),
       ),
     );
+    const next = byId("next-top");
+    next.disabled = last;
+    next.setAttribute("aria-label", last ? "Last step" : `Next: ${steps[state.step + 1].label}`);
   }
 
-  function scrollToSection(index) {
-    const section = byId(`step-${config.steps[index].id}`);
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    section.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-    section.querySelector(".step-title")?.focus({ preventScroll: true });
+  function goToStep(index, options = {}) {
+    const steps = config.steps;
+    const target = Math.max(0, Math.min(steps.length - 1, index));
+    stopPlayback();
+    state.step = target;
+    renderSteps({ keepScroll: false });
+    renderProgress();
+    prefetchForStep(target);
+    const panel = byId("steps-panel");
+    panel.scrollTop = 0;
+    if (options.focus !== false) {
+      byId("step-title")?.focus({ preventScroll: true });
+    }
+    if (window.matchMedia("(max-width: 1023px)").matches && options.scroll !== false) {
+      const stageColumn = byId("stage-column");
+      const top = panel.getBoundingClientRect().top + window.scrollY - stageColumn.offsetHeight - 8;
+      window.scrollTo({ top, behavior: reducedMotion() ? "auto" : "smooth" });
+    }
   }
 
-  function choice({ key, pressed, disabled, onclick, title, after, summary, extra, price, label }) {
+  function choice({ key, pressed, disabled, onclick, title, after, summary, extra, price, label, className }) {
     return h(
       "li",
       {},
@@ -600,7 +747,7 @@
         "button",
         {
           type: "button",
-          class: "choice",
+          class: className ? `choice ${className}` : "choice",
           "aria-pressed": pressed ? "true" : "false",
           "data-key": key,
           disabled,
@@ -621,7 +768,7 @@
   }
 
   function titled(main, rest) {
-    return [h("strong", { text: main }), rest ? ` - ${rest}` : null];
+    return [h("span", { class: "choice-name", text: main }), rest ? ` - ${rest}` : null];
   }
 
   function designStep() {
@@ -632,20 +779,19 @@
         h(
           "ul",
           { class: "choice-grid", style: `--rows:${Math.ceil(models.length / 2)}` },
-          models.map((model) =>
-            choice({
+          models.map((model) => {
+            const available = isAvailable(model);
+            return choice({
               key: `model:${model.id}`,
               pressed: model.id === state.model,
-              disabled: !model.available,
-              label: model.available ? null : `The ${model.name}, ${model.floorArea} square metres, coming soon`,
-              onclick: () => {
-                state.model = model.id;
-                enforceRules();
-                render();
-              },
+              disabled: !available,
+              className: "is-model",
+              label: available ? null : `The ${model.name}, ${model.floorArea} square metres, coming soon`,
+              onclick: () => selectModel(model.id),
               title: ["The ", h("strong", { text: model.name }), ` | ${model.floorArea}`],
-            }),
-          ),
+              after: available ? null : h("span", { class: "choice-soon", text: "Coming soon" }),
+            });
+          }),
         ),
       ];
     });
@@ -667,7 +813,7 @@
       blocks,
       h("p", {
         class: "note",
-        text: "The Pavilion is live in this test build. The other designs join as they are rendered.",
+        text: "Designs marked coming soon join the configurator as their 3D models are completed.",
       }),
     ];
   }
@@ -688,7 +834,7 @@
             pressed: roof.id === state.roof,
             onclick: () => select("roof", roof.id),
             title: titled(roof.name.toUpperCase(), roof.label),
-            summary: roof.summary,
+            summary: roofSummary(roof),
           }),
         ),
       ),
@@ -749,7 +895,7 @@
             key: `palette:${palette.id}`,
             pressed: palette.id === state.palette,
             onclick: () => select("palette", palette.id),
-            title: h("strong", { text: palette.name.toUpperCase() }),
+            title: h("span", { class: "choice-name", text: palette.name.toUpperCase() }),
             after: h(
               "span",
               { class: "swatches", "aria-hidden": "true" },
@@ -798,7 +944,7 @@
               toggleUpgrade(id);
               render();
             },
-            title: h("strong", { text: item.name }),
+            title: h("span", { class: "choice-name", text: item.name }),
             after: item.note
               ? h("span", { class: "choice-note", text: required ? "Required for this design" : `(${item.note})` })
               : null,
@@ -813,7 +959,7 @@
       h("p", { class: "lead" }, h("strong", { text: "Make it your home, your own." })),
       h("p", {
         class: "lead",
-        text: "Select from our range of premium upgrades and customise your new home to your lifestyle & budget (estimates only).",
+        text: "Select from our range of premium upgrades and customise your new home to your lifestyle & budget (estimates only, including GST).",
       }),
       groups,
     ];
@@ -855,9 +1001,8 @@
         h("span", { text: "Your New Home Estimate" }),
         h("strong", { text: formatPrice(summary.total) }),
       ),
-      summary.hasPoa
-        ? h("p", { class: "note", text: "Plus transport & delivery, priced on application." })
-        : null,
+      h("p", { class: "estimate-gst", text: gstNote() }),
+      summary.hasPoa ? h("p", { class: "note", text: "Plus transport & delivery, priced on application." }) : null,
     ];
   }
 
@@ -908,7 +1053,7 @@
 
   function detailsStep() {
     if (state.submitted) {
-      return confirmation();
+      return [confirmation(), shareBlock()];
     }
     return [
       h("p", { class: "lead" }, h("strong", { text: "Where should we send your New Home design?" })),
@@ -939,6 +1084,7 @@
           }),
         ),
       ),
+      shareBlock(),
     ];
   }
 
@@ -955,13 +1101,20 @@
       ["Colour palette", findPalette(state.palette).name],
       ["Cladding", claddingName(state.upgrades)],
       ["Upgrades", upgrades.length ? upgrades.join(", ") : "None"],
-      ["Your New Home Estimate", formatPrice(summary.total) + (summary.hasPoa ? " plus transport (POA)" : "")],
+      [
+        "Your New Home Estimate",
+        formatPrice(summary.total) +
+          (config.pricesIncludeGst ? " incl. GST" : "") +
+          (summary.hasPoa ? " plus transport (POA)" : ""),
+      ],
     ];
   }
 
   function confirmation() {
     const testMode = !config.submitEndpoint;
-    return [
+    return h(
+      "div",
+      { class: "confirmation" },
       testMode
         ? h("p", {
             class: "banner",
@@ -971,9 +1124,6 @@
         : null,
       h("p", { class: "confirm-title", text: "Your design is on its way to your inbox!" }),
       h("p", { class: "lead", text: "We'll be in touch soon to chat about bringing it to life." }),
-      state.summaryImage
-        ? h("img", { class: "summary-image", src: state.summaryImage, alt: describe(state) })
-        : null,
       h(
         "dl",
         { class: "summary-list" },
@@ -986,27 +1136,225 @@
       h(
         "div",
         { class: "summary-actions" },
-        state.summaryImage
-          ? h("a", {
-              class: "link-button",
-              href: state.summaryImage,
-              download: `NOOK-The-${currentModel().name.replace(/\s+/g, "-")}-design.jpg`,
-              text: "Download image",
-            })
-          : null,
-        h("button", { class: "link-button", type: "button", text: "Print or save as PDF", onclick: () => window.print() }),
-        h("button", { class: "link-button", type: "button", text: "Copy design link", onclick: copyLink }),
         h("button", { class: "link-button", type: "button", text: "Start a new design", onclick: restart }),
       ),
+    );
+  }
+
+  function shareKey() {
+    return JSON.stringify([state.model, state.roof, state.palette, [...state.upgrades].sort()]);
+  }
+
+  function shareLinks() {
+    const url = location.href;
+    const caption = config.share.caption;
+    return [
+      ["Facebook", `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`],
+      ["LinkedIn", `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`],
+      ["X", `https://twitter.com/intent/tweet?text=${encodeURIComponent(caption)}&url=${encodeURIComponent(url)}`],
     ];
   }
 
-  function copyLink(event) {
+  function followLinks() {
+    const names = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook", linkedin: "LinkedIn" };
+    return Object.entries(config.share.links || {})
+      .filter(([, href]) => Boolean(href))
+      .map(([key, href]) => [names[key] || key, href]);
+  }
+
+  function shareBlock() {
+    const block = h(
+      "section",
+      { class: "share", "aria-labelledby": "share-title" },
+      h("h3", { class: "share-title", id: "share-title", text: "Share your design" }),
+      h("p", {
+        class: "lead",
+        text: `Show your NOOK on social media and tag us ${config.share.handle}. Your design card carries the NOOK Pods logo, our website and our social links.`,
+      }),
+      h("div", {
+        class: "share-preview",
+        id: "share-preview",
+        oncontextmenu: (event) => event.preventDefault(),
+      }),
+      h("div", { class: "share-actions", id: "share-actions" }),
+    );
+    window.setTimeout(() => {
+      updateShare();
+      prepareShare();
+    }, 0);
+    return block;
+  }
+
+  function updateShare() {
+    const preview = byId("share-preview");
+    const actions = byId("share-actions");
+    if (!preview || !actions) {
+      return;
+    }
+    const ready = share.canvas && share.key === shareKey();
+    if (ready) {
+      if (preview.firstChild !== share.canvas) {
+        preview.replaceChildren(share.canvas);
+      }
+    } else if (!preview.querySelector(".share-wait")) {
+      preview.replaceChildren(h("p", { class: "share-wait", text: "Preparing your design card" }));
+    }
+    const nativeShare = Boolean(
+      ready && share.file && navigator.canShare && navigator.canShare({ files: [share.file] }),
+    );
+    const parts = [
+      nativeShare
+        ? h(
+            "button",
+            { class: "send-button share-button", type: "button", onclick: shareNatively },
+            "Share my design",
+            h("span", { class: "send-arrow", html: ARROW }),
+          )
+        : null,
+      h(
+        "p",
+        { class: "share-row" },
+        h("span", { class: "share-label", text: nativeShare ? "Or share a link:" : "Share a link:" }),
+        shareLinks().map(([name, href]) =>
+          h("a", { class: "link-button", href, target: "_blank", rel: "noopener noreferrer", text: name }),
+        ),
+        h("button", {
+          class: "link-button",
+          type: "button",
+          text: "Copy link and caption",
+          onclick: copyCaption,
+        }),
+      ),
+      h(
+        "p",
+        { class: "share-row" },
+        h("span", { class: "share-label", text: "Follow NOOK:" }),
+        followLinks().map(([name, href]) =>
+          h("a", { class: "link-button", href, target: "_blank", rel: "noopener noreferrer", text: name }),
+        ),
+      ),
+      share.message ? h("p", { class: "note", role: "status", text: share.message }) : null,
+    ];
+    actions.replaceChildren(...parts.filter(Boolean));
+  }
+
+  async function prepareShare() {
+    const key = shareKey();
+    if (share.key === key && (share.canvas || share.token)) {
+      updateShare();
+      return;
+    }
+    const token = {};
+    share.token = token;
+    share.key = key;
+    share.canvas = null;
+    share.file = null;
+    try {
+      const canvas = await composeShareCard();
+      if (share.token !== token) {
+        return;
+      }
+      canvas.classList.add("share-canvas");
+      canvas.setAttribute("role", "img");
+      canvas.setAttribute("aria-label", `Design card: ${describe(state)}`);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      share.canvas = canvas;
+      share.file = blob
+        ? new File([blob], `NOOK-The-${currentModel().name.replace(/\s+/g, "-")}-design.jpg`, { type: "image/jpeg" })
+        : null;
+    } catch (error) {
+      share.message = "Your design card could not be prepared just now.";
+    } finally {
+      if (share.token === token) {
+        share.token = null;
+      }
+    }
+    updateShare();
+  }
+
+  async function composeShareCard() {
+    const model = currentModel();
+    const layers = resolveStack(state);
+    const images = await Promise.all(layers.map((layer) => loadImage(layerUrl(layer.name, true)).catch(() => null)));
+    const logo = await loadImage("assets/brand/nook-pods-logo-white.svg").catch(() => null);
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+    const sceneHeight = SHARE_HEIGHT - SHARE_BAND;
+    const canvas = document.createElement("canvas");
+    canvas.width = SHARE_WIDTH;
+    canvas.height = SHARE_HEIGHT;
+    const context = canvas.getContext("2d");
+    context.fillStyle = STAGE_BACKGROUND;
+    context.fillRect(0, 0, SHARE_WIDTH, sceneHeight);
+    const crop = cropFor(
+      unionBounds(layers),
+      model.imageWidth,
+      model.imageHeight,
+      FRAME_PADDING,
+      SHARE_WIDTH / sceneHeight,
+    );
+    for (const image of images.filter(Boolean)) {
+      const scaleX = image.naturalWidth / model.imageWidth;
+      const scaleY = image.naturalHeight / model.imageHeight;
+      context.drawImage(
+        image,
+        crop.x * scaleX,
+        crop.y * scaleY,
+        crop.width * scaleX,
+        crop.height * scaleY,
+        0,
+        0,
+        SHARE_WIDTH,
+        sceneHeight,
+      );
+    }
+    context.fillStyle = "#151515";
+    context.fillRect(0, sceneHeight, SHARE_WIDTH, SHARE_BAND);
+    if (logo) {
+      const logoHeight = 84;
+      const logoWidth = (logoHeight * logo.naturalWidth) / logo.naturalHeight;
+      context.drawImage(logo, SHARE_MARGIN, sceneHeight + (SHARE_BAND - logoHeight) / 2, logoWidth, logoHeight);
+    }
+    context.textAlign = "right";
+    context.textBaseline = "alphabetic";
+    const right = SHARE_WIDTH - SHARE_MARGIN;
+    context.fillStyle = "#ffffff";
+    context.font = `500 44px ${FONT_STACK}`;
+    context.fillText(config.share.website, right, sceneHeight + 92);
+    context.fillStyle = "#c9c5be";
+    context.font = `400 26px ${FONT_STACK}`;
+    context.fillText(`${config.share.handle} on Instagram and YouTube`, right, sceneHeight + 136);
+    context.fillStyle = "#9a968f";
+    context.font = `500 20px ${FONT_STACK}`;
+    context.fillText(designLine().toUpperCase(), right, sceneHeight + 176);
+    return canvas;
+  }
+
+  async function shareNatively() {
+    if (!share.file) {
+      return;
+    }
+    try {
+      await navigator.share({
+        files: [share.file],
+        title: "My NOOK design",
+        text: `${config.share.caption} ${location.href}`,
+      });
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        share.message = "Sharing is not available here. Use a link below instead.";
+        updateShare();
+      }
+    }
+  }
+
+  function copyCaption(event) {
     const button = event.currentTarget;
     navigator.clipboard
-      .writeText(location.href)
+      .writeText(`${config.share.caption} ${location.href}`)
       .then(() => {
-        button.textContent = "Link copied";
+        button.textContent = "Link and caption copied";
       })
       .catch(() => {
         button.textContent = "Copy failed";
@@ -1020,7 +1368,9 @@
       const value = String(customer[definition.id] || "").trim();
       if (definition.required && !value) {
         errors[definition.id] =
-          definition.type === "select" ? "Please choose an option." : `Please enter your ${definition.label.toLowerCase()}.`;
+          definition.type === "select"
+            ? "Please choose an option."
+            : `Please enter your ${definition.label.toLowerCase()}.`;
       }
     }
     if (customer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customer.email.trim())) {
@@ -1064,9 +1414,7 @@
 
   async function composeImage(width) {
     const layers = resolveStack(state);
-    const images = await Promise.all(
-      layers.map((layer) => loadImage(layerUrl(layer.name, true)).catch(() => null)),
-    );
+    const images = await Promise.all(layers.map((layer) => loadImage(layerUrl(layer.name, true)).catch(() => null)));
     const model = currentModel();
     const crop = cropFor(unionBounds(layers), model.imageWidth, model.imageHeight);
     const canvas = document.createElement("canvas");
@@ -1109,7 +1457,7 @@
       `<table style="border-collapse:collapse;font-size:14px">${tableRows(rows)}</table>` +
       '<h2 style="font-weight:400;font-size:18px;margin-top:24px">Instant estimate</h2>' +
       `<table style="border-collapse:collapse;font-size:14px">${tableRows(priceRows)}</table>` +
-      '<p style="font-size:12px;color:#6e6c69">Estimates only, in NZD. Subject to full specifications. Terms and conditions apply.</p>' +
+      `<p style="font-size:12px;color:#6e6c69">Estimates only. ${escapeHtml(gstNote())} Subject to full specifications. Terms and conditions apply.</p>` +
       "</div>"
     );
   }
@@ -1131,6 +1479,7 @@
       },
       pricing: {
         currency: config.currency,
+        pricesIncludeGst: Boolean(config.pricesIncludeGst),
         lines: [...summary.included, ...summary.optional].map((line) => ({
           id: line.id,
           label: line.title,
@@ -1151,13 +1500,13 @@
       return;
     }
     if (!validate()) {
-      renderSections();
+      renderSteps({ keepScroll: true });
       document.querySelector('#steps [aria-invalid="true"]')?.focus();
       return;
     }
     state.sending = true;
     state.sendError = "";
-    renderSections();
+    renderSteps({ keepScroll: true });
     try {
       const image = await composeImage(1600);
       const payload = buildPayload(image);
@@ -1171,33 +1520,54 @@
           throw new Error(`Server replied ${response.status}`);
         }
       }
-      state.summaryImage = image;
       state.submitted = true;
     } catch (error) {
       state.sendError = "Sorry, we could not send your design just now. Please try again in a moment.";
     } finally {
       state.sending = false;
-      renderSections();
-      byId("step-details").scrollIntoView({ block: "start" });
+      renderSteps({ keepScroll: false });
+      byId("steps-panel").scrollTop = 0;
     }
   }
 
   function restart() {
+    stopPlayback();
+    state.model = defaultModelId();
     state.roof = "box";
     state.palette = "A";
     state.tier = availableTiers()[0].id;
     state.upgrades = new Set();
     state.submitted = false;
-    state.summaryImage = "";
+    state.sending = false;
+    state.sendError = "";
     state.errors = {};
+    share.message = "";
     enforceRules();
     render();
-    scrollToSection(0);
+    goToStep(0, { scroll: false });
+    byId("configurator").scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" });
   }
 
   function select(key, value) {
     stopPlayback();
     state[key] = value;
+    enforceRules();
+    render();
+  }
+
+  function selectModel(id) {
+    const model = findModel(id);
+    if (!model || !isAvailable(model) || id === state.model) {
+      return;
+    }
+    stopPlayback();
+    const wasRequired = config.upgrades.filter(isRequired).map((item) => item.id);
+    state.model = id;
+    for (const upgrade of wasRequired) {
+      if (!isRequired(findUpgrade(upgrade))) {
+        state.upgrades.delete(upgrade);
+      }
+    }
     enforceRules();
     render();
   }
@@ -1212,34 +1582,71 @@
     details: detailsStep,
   };
 
-  function buildSections() {
-    byId("steps").replaceChildren(
-      ...config.steps.map((step, index) =>
-        h(
-          "section",
-          { class: "step", id: `step-${step.id}`, "aria-labelledby": `step-${step.id}-title` },
-          h(
-            "div",
-            { class: "step-head" },
-            h("span", { class: "step-number", "aria-hidden": "true", text: String(index + 1) }),
-            h("h2", { class: "step-title", id: `step-${step.id}-title`, tabindex: "-1", text: step.title }),
+  function stepNavigation() {
+    const steps = config.steps;
+    const first = state.step === 0;
+    const last = state.step === steps.length - 1;
+    return h(
+      "div",
+      { class: "step-nav" },
+      first
+        ? h("span")
+        : h(
+            "button",
+            { class: "back-button", type: "button", onclick: () => goToStep(state.step - 1) },
+            h("span", { class: "back-arrow", html: CHEVRON }),
+            "Back",
           ),
-          h("div", { class: "step-body", id: `step-${step.id}-body` }),
-        ),
-      ),
+      last
+        ? null
+        : h(
+            "button",
+            { class: "next-button", type: "button", onclick: () => goToStep(state.step + 1) },
+            `Next: ${steps[state.step + 1].label}`,
+            h("span", { class: "next-arrow", html: ARROW }),
+          ),
     );
   }
 
-  function renderSections() {
+  function renderSteps(options = {}) {
+    const step = config.steps[state.step];
+    const container = byId("steps");
+    const panel = byId("steps-panel");
     const focusedKey = document.activeElement?.dataset?.key;
-    for (const step of config.steps) {
-      const body = byId(`step-${step.id}-body`);
-      if (step.id === "details" && body.contains(document.activeElement) && !state.sending && !state.submitted) {
-        if (!Object.keys(state.errors).length) {
-          continue;
-        }
-      }
-      body.replaceChildren(...[BUILDERS[step.id]()].flat(Infinity).filter(Boolean));
+    const scroll = panel.scrollTop;
+    const body = byId("step-body");
+    if (
+      body &&
+      body.dataset.step === step.id &&
+      step.id === "details" &&
+      body.contains(document.activeElement) &&
+      !state.sending &&
+      !state.submitted &&
+      !Object.keys(state.errors).length &&
+      options.force !== true
+    ) {
+      return;
+    }
+    container.replaceChildren(
+      h(
+        "section",
+        { class: "step", "aria-labelledby": "step-title" },
+        h(
+          "div",
+          { class: "step-head" },
+          h("span", { class: "step-number", "aria-hidden": "true", text: String(state.step + 1) }),
+          h("h2", { class: "step-title", id: "step-title", tabindex: "-1", text: step.title }),
+        ),
+        h(
+          "div",
+          { class: "step-body", id: "step-body", "data-step": step.id },
+          [BUILDERS[step.id]()].flat(Infinity).filter(Boolean),
+        ),
+        stepNavigation(),
+      ),
+    );
+    if (options.keepScroll) {
+      panel.scrollTop = scroll;
     }
     if (focusedKey) {
       document.querySelector(`[data-key="${focusedKey}"]`)?.focus({ preventScroll: true });
@@ -1247,43 +1654,15 @@
   }
 
   function render() {
-    renderSections();
+    renderSteps({ keepScroll: true, force: true });
     renderProgress();
     if (!playback) {
       renderStage(state);
     }
-    renderInteriors();
     renderGallery();
-    const ready = spinReady(state);
-    byId("spin-toggle").hidden = !ready;
-    if (spin.active && !ready) {
-      toggleSpin(false);
-    } else if (spin.active) {
-      buildSpin();
-    }
     if (!state.submitted) {
       writeHash();
     }
-  }
-
-  function watchSections() {
-    const sections = config.steps.map((step) => byId(`step-${step.id}`));
-    const visible = new Map();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          visible.set(entry.target, entry.isIntersecting);
-        }
-        const index = sections.findIndex((section) => visible.get(section));
-        if (index >= 0 && index !== state.section) {
-          state.section = index;
-          renderProgress();
-          prefetchForSection(index);
-        }
-      },
-      { rootMargin: "-40% 0px -50% 0px" },
-    );
-    sections.forEach((section) => observer.observe(section));
   }
 
   function sequenceView(frame) {
@@ -1294,9 +1673,6 @@
     if (playback) {
       stopPlayback();
       return;
-    }
-    if (spin.active) {
-      toggleSpin(false);
     }
     const button = byId("stage-play");
     const token = {};
@@ -1332,311 +1708,15 @@
     renderStage(state);
   }
 
-  const pad = (value) => String(value).padStart(2, "0");
-
-  function spinLayers(view, angle) {
-    const azimuth = ((config.spin.azimuth + (360 * angle) / config.spin.count) * Math.PI) / 180;
-    const fixed = [];
-    const free = [];
-    for (const entry of config.spin.stack) {
-      if (!matches(entry, view.upgrades)) {
-        continue;
-      }
-      const layer = { slot: entry.slot, name: fill(entry.src, view) };
-      if (entry.at) {
-        layer.depth = entry.at[0] * Math.sin(azimuth) - entry.at[1] * Math.cos(azimuth);
-        free.push(layer);
-      } else {
-        fixed.push(layer);
-      }
-    }
-    free.sort((a, b) => a.depth - b.depth);
-    return fixed.concat(free);
-  }
-
-  function spinReady(view) {
-    if (!spin.manifest || !currentModel().spin) {
-      return false;
-    }
-    const missing = new Set(spin.manifest.missing || []);
-    for (let angle = 0; angle < config.spin.count; angle += 1) {
-      for (const layer of spinLayers(view, angle)) {
-        if (!spin.manifest.layers[layer.name] || missing.has(`${layer.name}@${pad(angle)}`)) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  function spinUrl(name, angle) {
-    return `${currentModel().spin}${pad(angle)}/${name}${spin.suffix}.webp`;
-  }
-
-  function spinCrop(names, aspect) {
-    let union = null;
-    for (const name of names) {
-      for (const bounds of spin.manifest.layers[name] || []) {
-        union = mergeBounds(union, bounds);
-      }
-    }
-    const sourceWidth = config.spin.imageWidth;
-    const sourceHeight = config.spin.imageHeight;
-    if (!union) {
-      return { x: 0, y: 0, width: sourceWidth, height: sourceHeight };
-    }
-    // Unlike the main view, never trim the pod to fill the stage: some angle would lose its ends.
-    const left = Math.max(union[0] - SPIN_PADDING, 0) * sourceWidth;
-    const top = Math.max(union[1] - SPIN_PADDING, 0) * sourceHeight;
-    const right = Math.min(union[2] + SPIN_PADDING, 1) * sourceWidth;
-    const bottom = Math.min(union[3] + SPIN_PADDING, 1) * sourceHeight;
-    const width = Math.min(Math.max(right - left, (bottom - top) * aspect), sourceWidth);
-    const height = Math.min(Math.max(bottom - top, width / aspect), sourceHeight);
-    return {
-      x: Math.min(Math.max((left + right - width) / 2, 0), sourceWidth - width),
-      y: Math.min(Math.max((top + bottom - height) / 2, 0), sourceHeight - height),
-      width,
-      height,
-    };
-  }
-
-  async function fetchBitmap(url) {
-    try {
-      const response = await fetch(url);
-      return response.ok ? await createImageBitmap(await response.blob()) : null;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function angleOrder(start, count) {
-    const order = [start];
-    for (let step = 1; order.length < count; step += 1) {
-      for (const angle of [start + step, start - step]) {
-        const wrapped = ((angle % count) + count) % count;
-        if (!order.includes(wrapped)) {
-          order.push(wrapped);
-        }
-      }
-    }
-    return order;
-  }
-
-  function showSpinFrame() {
-    const count = config.spin.count;
-    let url = spin.frames[spin.angle];
-    for (let offset = 1; !url && offset < count; offset += 1) {
-      url = spin.frames[(spin.angle + offset) % count] || spin.frames[(spin.angle - offset + count) % count];
-    }
-    if (url) {
-      const image = byId("spin-image");
-      if (image.getAttribute("src") !== url) {
-        image.src = url;
-      }
-    }
-  }
-
-  async function buildSpin() {
-    const count = config.spin.count;
-    const view = { roof: state.roof, palette: state.palette, upgrades: new Set(state.upgrades) };
-    const perAngle = Array.from({ length: count }, (_, angle) => spinLayers(view, angle));
-    const stage = byId("stage");
-    const aspect = stage.clientWidth / stage.clientHeight;
-    const key = `${JSON.stringify(perAngle.map((layers) => layers.map((layer) => layer.name)))}|${aspect.toFixed(3)}`;
-    if (key === spin.key) {
-      showSpinFrame();
-      return;
-    }
-    const token = {};
-    spin.token = token;
-    cancelIntro();
-    const names = [...new Set(perAngle.flat().filter((layer) => layer.slot !== "shadow").map((layer) => layer.name))];
-    const crop = spinCrop(names, aspect);
-    const scale = spin.suffix ? 0.5 : 1;
-    const ratio = window.devicePixelRatio || 1;
-    const shown = Math.min(stage.clientWidth, (stage.clientHeight * crop.width) / crop.height);
-    const width = Math.round(Math.min(crop.width * scale, shown * ratio));
-    const height = Math.round((width * crop.height) / crop.width);
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    const frames = new Array(count).fill(null);
-    const order = angleOrder(spin.angle, count);
-    const fetches = new Map();
-    const request = (angle) => {
-      if (!fetches.has(angle)) {
-        fetches.set(angle, Promise.all(perAngle[angle].map((layer) => fetchBitmap(spinUrl(layer.name, angle)))));
-      }
-      return fetches.get(angle);
-    };
-    let adopted = false;
-    for (let index = 0; index < order.length; index += 1) {
-      const angle = order[index];
-      order.slice(index + 1, index + 3).forEach(request);
-      const bitmaps = await request(angle);
-      fetches.delete(angle);
-      if (spin.token !== token) {
-        bitmaps.forEach((bitmap) => bitmap?.close());
-        if (spin.frames !== frames) {
-          frames.forEach((url) => url && URL.revokeObjectURL(url));
-        }
-        return;
-      }
-      context.fillStyle = STAGE_BACKGROUND;
-      context.fillRect(0, 0, width, height);
-      for (const bitmap of bitmaps) {
-        if (bitmap) {
-          context.drawImage(
-            bitmap,
-            crop.x * scale,
-            crop.y * scale,
-            crop.width * scale,
-            crop.height * scale,
-            0,
-            0,
-            width,
-            height,
-          );
-          bitmap.close();
-        }
-      }
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
-      frames[angle] = URL.createObjectURL(blob);
-      if (!adopted) {
-        adopted = true;
-        spin.frames.forEach((url) => url && URL.revokeObjectURL(url));
-        spin.frames = frames;
-        byId("spin-view").hidden = false;
-        byId("stage-layers").classList.add("is-hidden");
-      }
-      showSpinFrame();
-      setStatus(index + 1 < count ? `Loading 360 view ${index + 1} of ${count}` : "");
-    }
-    if (spin.token === token) {
-      spin.key = key;
-      playIntro();
-    }
-  }
-
-  function setSpinAngle(angle) {
-    const count = config.spin.count;
-    spin.angle = ((angle % count) + count) % count;
-    showSpinFrame();
-  }
-
-  function cancelIntro() {
-    if (spin.intro) {
-      window.clearInterval(spin.intro);
-      spin.intro = null;
-    }
-  }
-
-  function playIntro() {
-    if (spin.played || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return;
-    }
-    spin.played = true;
-    let steps = 0;
-    spin.intro = window.setInterval(() => {
-      steps += 1;
-      setSpinAngle(spin.angle + 1);
-      if (steps >= config.spin.count) {
-        cancelIntro();
-      }
-    }, SPIN_INTRO_MS);
-  }
-
-  function toggleSpin(force) {
-    const active = force ?? !spin.active;
-    spin.active = active;
-    const button = byId("spin-toggle");
-    button.setAttribute("aria-pressed", active ? "true" : "false");
-    button.textContent = active ? "Exit 360 view" : "360 view";
-    byId("spin-controls").hidden = !active;
-    byId("stage").classList.toggle("is-spinning", active);
-    if (active) {
-      stopPlayback();
-      byId("stage").setAttribute("tabindex", "0");
-      buildSpin();
-    } else {
-      spin.token = null;
-      spin.key = "";
-      cancelIntro();
-      setStatus("");
-      byId("spin-view").hidden = true;
-      byId("stage-layers").classList.remove("is-hidden");
-      byId("stage").removeAttribute("tabindex");
-    }
-  }
-
-  function bindSpin() {
-    const stage = byId("stage");
-    byId("spin-toggle").addEventListener("click", () => toggleSpin());
-    byId("spin-left").innerHTML = CHEVRON;
-    byId("spin-right").innerHTML = CHEVRON;
-    byId("spin-left").addEventListener("click", () => {
-      cancelIntro();
-      setSpinAngle(spin.angle + 1);
-    });
-    byId("spin-right").addEventListener("click", () => {
-      cancelIntro();
-      setSpinAngle(spin.angle - 1);
-    });
-    stage.addEventListener("pointerdown", (event) => {
-      if (!spin.active || event.target.closest("button")) {
-        return;
-      }
-      cancelIntro();
-      spin.drag = { x: event.clientX, angle: spin.angle };
-      stage.setPointerCapture(event.pointerId);
-    });
-    stage.addEventListener("pointermove", (event) => {
-      if (!spin.drag) {
-        return;
-      }
-      const stepWidth = Math.max(8, stage.clientWidth / 48);
-      setSpinAngle(spin.drag.angle - Math.round((event.clientX - spin.drag.x) / stepWidth));
-    });
-    const release = () => {
-      spin.drag = null;
-    };
-    stage.addEventListener("pointerup", release);
-    stage.addEventListener("pointercancel", release);
-    stage.addEventListener("keydown", (event) => {
-      if (!spin.active) {
-        return;
-      }
-      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-        event.preventDefault();
-        cancelIntro();
-        setSpinAngle(spin.angle + (event.key === "ArrowLeft" ? 1 : -1));
-      }
-    });
-  }
-
   function bindChrome() {
     byId("stage-play").addEventListener("click", playSequence);
-    byId("lightbox-close").addEventListener("click", closeLightbox);
-    byId("lightbox").addEventListener("click", (event) => {
-      if (event.target === event.currentTarget) {
-        closeLightbox();
-      }
-    });
+    byId("start-new").addEventListener("click", restart);
+    byId("next-top").addEventListener("click", () => goToStep(state.step + 1));
+    byId("stage").addEventListener("contextmenu", (event) => event.preventDefault());
     let resizeTimer = 0;
     window.addEventListener("resize", () => {
       window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(() => {
-        frameStage(framedBounds, false);
-        if (spin.active) {
-          buildSpin();
-        }
-      }, 160);
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !byId("lightbox").hidden) {
-        closeLightbox();
-      }
+      resizeTimer = window.setTimeout(() => frameStage(framedBounds, false), 160);
     });
   }
 
@@ -1646,6 +1726,20 @@
       throw new Error(`${url} answered ${response.status}`);
     }
     return response.json();
+  }
+
+  async function loadManifests() {
+    await Promise.all(
+      config.models
+        .filter((model) => model.layers)
+        .map(async (model) => {
+          try {
+            manifests.set(model.id, await loadJson(`${model.layers}manifest.json`));
+          } catch (error) {
+            manifests.set(model.id, null);
+          }
+        }),
+    );
   }
 
   async function init() {
@@ -1661,32 +1755,20 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-    const model = currentModel();
-    try {
-      const manifest = await loadJson(`${model.layers}manifest.json`);
-      layerBounds = Object.fromEntries(
-        Object.entries(manifest.layers).map(([name, entry]) => [name, entry.bounds]),
-      );
-    } catch (error) {
-      layerBounds = {};
-    }
-    if (model.spin && config.spin) {
-      try {
-        spin.manifest = await loadJson(`${model.spin}manifest.json`);
-      } catch (error) {
-        spin.manifest = null;
-      }
+    await loadManifests();
+    state.model = defaultModelId();
+    if (!state.model) {
+      byId("steps").textContent = "The configurator could not load its designs. Please refresh the page.";
+      return;
     }
     const stageWidth = byId("stage").clientWidth || window.innerWidth;
     const deviceWidth = stageWidth * (window.devicePixelRatio || 1);
     layerSuffix = deviceWidth > 1400 ? "" : "-1280";
-    spin.suffix = deviceWidth > 1300 ? "" : "-1200";
     readHash();
-    buildSections();
+    enforceRules();
     bindChrome();
-    bindSpin();
+    bindGallery();
     render();
-    watchSections();
   }
 
   init();

@@ -11,10 +11,10 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="NOOK Pods" />
-    <meta property="og:title" content="Build Your NOOK | The Pavilion" />
+    <meta property="og:title" content="Build Your NOOK | 3D Configurator" />
     <meta
       property="og:description"
-      content="Choose your roof, specification, colour palette and upgrades, turn your NOOK through 360 degrees and see your instant build estimate."
+      content="Choose your design, roof, specification, colour palette and upgrades, and see your instant build estimate."
     />
     <meta property="og:url" content="https://hzia1938-spec.github.io/nook-configurator/" />
     <meta property="og:image" content="https://hzia1938-spec.github.io/nook-configurator/assets/og-image.jpg" />
@@ -28,17 +28,12 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,300..700&display=swap"
     />
-    <link rel="stylesheet" href="assets/css/configurator.css?v=202611171457" />
+    <link rel="stylesheet" href="assets/css/configurator.css?v=202611190737" />
   </head>
   <body>
     <header class="site-header">
       <a class="brand" href="./" aria-label="NOOK Pods configurator home">
-        <img
-          src="assets/brand/nook-pods-logo-black.svg"
-          alt="NOOK Pods"
-          width="150"
-          height="48"
-        />
+        <img src="assets/brand/nook-pods-logo-black.svg" alt="NOOK Pods" width="150" height="48" />
       </a>
       <p class="header-title">
         3D Configurator
@@ -48,88 +43,90 @@
 
     <main>
       <section class="intro" aria-labelledby="page-title">
-        <p class="eyebrow">Instant build estimate</p>
+        <div class="intro-bar">
+          <p class="eyebrow">Instant build estimate</p>
+          <button class="bar-button" id="start-new" type="button">Start new design</button>
+        </div>
         <h1 class="intro-title" id="page-title">Build Your NOOK</h1>
         <p class="intro-text">
-          Tailor every square metre to match your lifestyle. Choose your finish,
-          layout and off-grid package in real time.
+          Tailor every square metre to match your lifestyle. Choose your finish, layout and off-grid package in real
+          time.
         </p>
       </section>
 
-      <div class="configurator">
-        <section class="stage-column" aria-label="Your pod">
-          <p class="eyebrow stage-eyebrow">3D build configurator</p>
-          <div class="stage" id="stage">
-            <div class="stage-layers" id="stage-layers" role="img"></div>
-            <div class="stage-spin" id="spin-view" hidden>
-              <img id="spin-image" alt="" draggable="false" />
-            </div>
-            <p class="stage-caption" id="stage-caption"></p>
-            <div class="spin-controls" id="spin-controls" hidden>
-              <button
-                class="spin-arrow"
-                id="spin-left"
-                type="button"
-                aria-label="Turn left"
-              ></button>
-              <span class="spin-hint">Drag to turn</span>
-              <button
-                class="spin-arrow is-right"
-                id="spin-right"
-                type="button"
-                aria-label="Turn right"
-              ></button>
-            </div>
-            <div class="stage-actions">
-              <button
-                class="stage-button"
-                id="spin-toggle"
-                type="button"
-                aria-pressed="false"
-                hidden
-              >
-                360 view
-              </button>
-              <button class="stage-button" id="stage-play" type="button">
-                Watch it build
-              </button>
-            </div>
-            <p class="stage-status" id="stage-status" role="status" hidden></p>
+      <section class="configurator" id="configurator" aria-label="3D build configurator">
+        <div class="configurator-bar">
+          <div class="bar-start">
+            <p class="eyebrow">3D build configurator</p>
+            <button class="next-top" id="next-top" type="button">
+              Next
+              <svg viewBox="0 0 64 24" aria-hidden="true">
+                <path d="M2 12h58M54 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.4" />
+              </svg>
+            </button>
           </div>
-          <div class="interior-strip" id="interior-strip" hidden></div>
-          <div class="gallery" id="gallery">
-            <p class="gallery-title">
-              <span class="eyebrow">Inspiration gallery</span>
-              <span class="gallery-hint">(Click to enlarge pictures on screen)</span>
-            </p>
-            <ul class="gallery-grid" id="gallery-grid"></ul>
-          </div>
-        </section>
-
-        <section class="steps-column" aria-label="Configurator steps">
           <nav class="progress" id="progress" aria-label="Steps"></nav>
-          <div class="steps" id="steps"></div>
-        </section>
-      </div>
+        </div>
+
+        <div class="configurator-body">
+          <div class="stage-column" id="stage-column">
+            <p class="view-label">Isometric view</p>
+            <div class="stage" id="stage">
+              <div class="stage-layers" id="stage-layers" role="img"></div>
+              <p class="stage-status" id="stage-status" role="status" hidden></p>
+            </div>
+            <div class="stage-footer">
+              <p class="stage-caption" id="stage-caption"></p>
+              <button class="stage-button" id="stage-play" type="button">Watch it build</button>
+            </div>
+          </div>
+
+          <div class="steps-panel" id="steps-panel">
+            <div class="steps" id="steps"></div>
+          </div>
+        </div>
+      </section>
+
+      <hr class="section-rule" />
+
+      <section class="inspiration" id="inspiration" aria-labelledby="inspiration-title" hidden>
+        <div class="inspiration-head">
+          <h2 class="inspiration-title" id="inspiration-title">Inspiration Gallery</h2>
+          <p class="inspiration-text">
+            <strong>Explore the inside and outside</strong> of our architectural modular homes.
+          </p>
+        </div>
+        <div
+          class="carousel"
+          id="carousel"
+          role="region"
+          aria-roledescription="carousel"
+          aria-label="Inspiration gallery"
+          tabindex="0"
+        >
+          <div class="carousel-frame" id="carousel-frame">
+            <img class="carousel-image" id="carousel-image" alt="" draggable="false" />
+            <button class="carousel-arrow is-prev" id="carousel-prev" type="button" aria-label="Previous image">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6" />
+              </svg>
+            </button>
+            <button class="carousel-arrow is-next" id="carousel-next" type="button" aria-label="Next image">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.6" />
+              </svg>
+            </button>
+          </div>
+          <div class="carousel-meta">
+            <p class="carousel-caption" id="carousel-caption" aria-live="polite"></p>
+            <div class="carousel-groups" id="carousel-groups"></div>
+            <p class="carousel-count" id="carousel-count"></p>
+          </div>
+          <ul class="carousel-thumbs" id="carousel-thumbs"></ul>
+        </div>
+      </section>
     </main>
 
-    <div
-      class="lightbox"
-      id="lightbox"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="lightbox-caption"
-      hidden
-    >
-      <div class="lightbox-inner">
-        <button class="lightbox-close" id="lightbox-close" type="button">
-          Close
-        </button>
-        <div class="lightbox-media" id="lightbox-media"></div>
-        <p class="lightbox-caption" id="lightbox-caption"></p>
-      </div>
-    </div>
-
-    <script src="assets/js/configurator.js?v=202611171457" defer></script>
+    <script src="assets/js/configurator.js?v=202611190737" defer></script>
   </body>
 </html>
